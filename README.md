@@ -1,2 +1,3 @@
-# guardian-ecosystem-simulator
-Full Guardian ecosystem simulation tool-set. Enables interaction with virtual smart devices and home monitoring systems.
+# Guardian Ecosystem Simulator
+
+Please see [http://docs.gvd3.com/]
