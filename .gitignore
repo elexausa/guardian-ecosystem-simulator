@@ -1,2 +1,3 @@
 venv/*
 local_reference/*
+__pycache__/

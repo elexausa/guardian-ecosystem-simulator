@@ -32,8 +32,8 @@ class Valve(core.Device):
     # Disable object `__dict__`
     __slots__ = ('_main_process', '_leak_detect_process', '_rf_rx_pipe')
 
-    MEAN_LEAK_DETECTION_TIME = 1 / 300 # roughly once every 300 seconds, used for 
-                                       # expovariate distribution
+    LEAK_DETECT_TIMEFRAME_MIN = 1
+    LEAK_DETECT_TIMEFRAME_MAX = 1*60*60*24*30 # 30 days
 
     def __init__(self, instance_name=None):
         super().__init__(codename='tiddymun', instance_name=instance_name)
@@ -42,50 +42,82 @@ class Valve(core.Device):
         self._rf_rx_pipe = core.Device.COMM_TUNNEL_915.get_output_pipe()
 
         # Configure settings
-        self._settings['close_delay_s'] = {
-            '_type': 'uint16',
-            '_value': 5,
-            '_description': 'Amount of time to wait (in seconds) before closing valve'
-        }
-        self._settings['location_gps_lat'] = {
-            '_type': 'float',
-            '_value': 0.0,
-            '_description': 'Latitudinal GPS location'
-        }
-        self._settings['location_gps_lon'] = {
-            '_type': 'float',
-            '_value': 0.0,
-            '_description': 'Longitudinal GPS location'
-        }
+        self.save_setting(
+            core.Device.Data(
+                name='close_delay_s',
+                type=core.Device.Data.Type.UINT16,
+                value=5,
+                description='Amount of time to wait (in seconds) before closing valve'
+            )
+        )
+        self.save_setting(
+            core.Device.Data(
+                name='location_gps_lat',
+                type=core.Device.Data.Type.FLOAT,
+                value=5,
+                description='Latitudinal GPS coordinate'
+            )
+        )
+        self.save_setting(
+            core.Device.Data(
+                name='location_gps_lon',
+                type=core.Device.Data.Type.FLOAT,
+                value=5,
+                description='Longitudinal GPS coordinate'
+            )
+        )
 
         # Initialize state
-        self._state['valve'] = {
-            '_type': 'string',
-            '_value': 'opened',
-            '_description': 'Describes state of valve as opened/closed/stuck'
-        }
-        self._state['motor'] = {
-            '_type': 'string',
-            '_value': 'resting',
-            '_description': 'Describes state of motor as opening/closing/resting'
-        }
-        self._state['motor_current'] = {
-            '_type': 'float',
-            '_value': 0.0, '_description':
-            'Current draw of motor (in Amps)'
-        }
-        self._state['firmware_version'] = {
-            '_type': 'string',
-            '_value': '4.0.0',
-            '_description': 'Current device firmware version'
-        }
-        self._state['probe1_wet'] = {
-            '_type': 'bool',
-            '_value': 'true',
-            '_description': 'True if water detected at probe1'
-        }
+        self.save_state(
+            core.Device.Data(
+                name='valve',
+                type=core.Device.Data.Type.STRING,
+                value='opened',
+                description=''
+            )
+        )
+        self.save_state(
+            core.Device.Data(
+                name='motor',
+                type=core.Device.Data.Type.STRING,
+                value='resting',
+                description='State of motor as opening/closing/resting'
+            )
+        )
+        self.save_state(
+            core.Device.Data(
+                name='motor_current',
+                type=core.Device.Data.Type.FLOAT,
+                value=0.0,
+                description='Current draw of motor (in Amps)'
+            )
+        )
+        self.save_state(
+            core.Device.Data(
+                name='firmware_version',
+                type=core.Device.Data.Type.STRING,
+                value='4.0.0',
+                description='Valve controller firmware version'
+            )
+        )
+        self.save_state(
+            core.Device.Data(
+                name='probe1_wet',
+                type=core.Device.Data.Type.BOOLEAN,
+                value=False,
+                description='True if water detected at probe1'
+            )
+        )
+        self.save_state(
+            core.Device.Data(
+                name='valve',
+                type=core.Device.Data.Type.STRING,
+                value='opened',
+                description='State of valve as opened/closed/stuck'
+            )
+        )
 
-        # Spawn self processes
+        # # Spawn self processes
         self._main_process = core.ENV.process(self.run())
         self._leak_detect_process = core.ENV.process(self.detect_leak())
 
@@ -142,10 +174,10 @@ class DyingCow(core.Device):
         """Dying cow factory.
 
             instance_name (str, optional): Defaults to None which triggers
-                automatic naming by Device superclass. Provide unique 
-        
+                automatic naming by Device superclass. Provide unique
+
         Returns:
-            [type]: [description]
+            DyingCow: new DyingCow instance
         """
 
         return DyingCow(instance_name=instance_name)
@@ -156,7 +188,7 @@ class DyingCow(core.Device):
         while True:
             # Every 1 sec to 1 hour there's a moo, it's a slow death
             yield core.ENV.timeout(random.randint(1,1*60*60))
-            
+
             # mooooooOOOooOOoOOOooOOoOOoOoo!!!
             logger.info('moooooOOOOoOOOooOOoooOOOOooooo!!')
 

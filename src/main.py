@@ -18,15 +18,18 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import datetime
+from pprint import pprint
 import random
 import time
 import json
 import simpy
 import os
 import logging
+import dataclasses
 
-from gds import core
-from gds.devices.Valve import Valve, DyingCow
+from ges import core
+from ges.devices.Valve import Valve
+from ges.devices.Leak_Detector import Leak_Detector
 
 RANDOM_SEED = time.time()
 
@@ -51,25 +54,23 @@ if __name__ == "__main__":
     # Record start time
     starttime = datetime.datetime.now()
 
+    # Create
+    valves = {}
+    leak_detectors = {}
+
     try:
-        # Create valves
-        valves = {}
+        # for i in range(10):
+        #     v = Valve()
+        #     valves[v._instance_name] = v
+        #     print(v.dump_json())
 
         for i in range(10):
-            v = Valve()
-            valves[v._instance_name] = v
-            print(v.dump_json())
-
-        # for valve_id, valve in valves.items():
-        #     logging.info('%s:\n%s' % (valve_id, valve.dump_json()))
-
-        # Throw in some dying cows
-        dying_cows = [('cow_%d' % i, DyingCow.spawn("Moo-er #%d" % i)) for i in range(10000)]
-
-        # for cow_id, cow in dying_cows:
-        #     logging.info('%s:\n%s' % (cow_id, cow.dump_json()))
+            ld = Leak_Detector()
+            leak_detectors[ld._instance_name] = ld
+            print(ld.dump_json())
 
         # Start simulation
+        print('\n\n')
         logging.info("Starting simulation...")
         core.ENV.run()
 
