@@ -25,8 +25,9 @@ import simpy
 import os
 import logging
 
-from gds import core
-from gds.devices.Valve import Valve, DyingCow
+from ges import core
+from ges.devices.Valve import Valve
+from ges.devices.Leak_Detector import Leak_Detector
 
 RANDOM_SEED = time.time()
 
@@ -51,20 +52,26 @@ if __name__ == "__main__":
     # Record start time
     starttime = datetime.datetime.now()
 
-    try:
-        # Create valves
-        valves = {}
+    # Create
+    valves = {}
+    leak_detectors = {}
 
+    try:
         for i in range(10):
             v = Valve()
             valves[v._instance_name] = v
             print(v.dump_json())
 
+        for i in range(1000):
+            ld = Leak_Detector()
+            leak_detectors[ld._instance_name] = ld
+            print(ld.dump_json())
+
         # for valve_id, valve in valves.items():
         #     logging.info('%s:\n%s' % (valve_id, valve.dump_json()))
 
         # Throw in some dying cows
-        dying_cows = [('cow_%d' % i, DyingCow.spawn("Moo-er #%d" % i)) for i in range(10000)]
+        # dying_cows = [('cow_%d' % i, DyingCow.spawn("Moo-er #%d" % i)) for i in range(100)]
 
         # for cow_id, cow in dying_cows:
         #     logging.info('%s:\n%s' % (cow_id, cow.dump_json()))
@@ -75,6 +82,9 @@ if __name__ == "__main__":
 
     except (KeyboardInterrupt, SystemExit):
         logging.warning("Simulation shutting down!")
+
+        for k, v in leak_detectors.items():
+            print(str(k) + ":\n" + str(v.dump_json()))
 
         # Calculate duration
         duration = round((datetime.datetime.now() - starttime).total_seconds())

@@ -21,13 +21,14 @@
 from enum import Enum
 from collections import namedtuple
 from frozendict import frozendict
+from dataclasses import dataclass
 import datetime
 import string
 import json
 import simpy
 import logging
 
-from gds import util
+from ges import util
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +50,17 @@ class CommunicationTunnel(object):
         BLUETOOTH_CLASSIC = 2
         BLUETOOTH_LE = 3
 
+
+    @dataclass
+    class RF_Packet:
+        mac_address: str
+        battery: int
+        temperature: float
+        top: bool
+        bottom: bool
+        tilt: bool
+
+
     def __init__(self, capacity=simpy.core.Infinity, type=Type.RF):
         # Store pipe configuration
         # self._env = env
@@ -67,7 +79,7 @@ class CommunicationTunnel(object):
         Arguments:
             env (simpy.Environment, required): The simpy environment to
                 attach communication tunnel.
-            type (core.CommunicationTunnel.Type, optional): Defaults to 
+            type (CommunicationTunnel.Type, optional): Defaults to
                 Type.RF. The desired tunnel to create.
         """
         return CommunicationTunnel(capacity=simpy.core.Infinity, type=type)
@@ -114,17 +126,23 @@ class CommunicationTunnel(object):
 
 
 class Device(object):
+
+    class DataType(Enum):
+        OTHER = 'other'
+        UINT8 = 'uint8'
+        UINT16 = 'uint16'
+        UINT32 = 'uint32'
+        INT8 = 'int8'
+        INT16 = 'int16'
+        INT32 = 'int32'
+        BOOLEAN = 'boolean'
+        FLOAT = 'float'
+        STRING = 'string'
+
     ## Probably temporary ####
     SERIAL_NUMBER_LENGTH = 16
     MAC_ADDRESS_LENGTH = 12
     ##########################
-
-    # class CapabilityType(Enum):
-    #     class Networking(Enum):
-    #         RF_915MHZ = namedtuple('RF_915MHZ', [
-    #             'rf_tx_func',
-    #             'rf_rx_pipe'
-    #         ])
 
     COMM_TUNNEL_915 = CommunicationTunnel.create(CommunicationTunnel.Type.RF)
 
@@ -132,17 +150,14 @@ class Device(object):
     __slots__ = ('_metadata', '_settings', '_state', '_instance_name', '_rf_tx_func', '_rf_rx_pipe')
 
     def __init__(self, codename='generic', instance_name=None):
-        # Store simulation environment
-        # self._env = env
-
         # Generate generic `metadata` as frozendict; cannot be modified
-        self._metadata = frozendict({
+        self._metadata = {
             'codename': str(codename),
             'serial_number': self.generate_serial(),
             'manufactured_at': str(datetime.datetime.now()),
             'mac_address': self.generate_mac_addr()
-        })
-    
+        }
+
         # Validate and save instance name
         if instance_name is not None:
             # Validate is string type
@@ -155,44 +170,60 @@ class Device(object):
             # TODO: move format out to configuration
             self._instance_name = 'Device-' + self._metadata['mac_address'][-4:]
 
-        # Create internal capabilities list
-        # self.__capabilities = []
-
-        # Validate and store capabilities
-        # if capabilities is not None:
-        #     # TODO: enforce input
-        #     for capability in capabilities:
-        #         if capability is Device.CapabilityType.Networking.RF_915MHZ:
-        #             # Validate provided data types
-        #             # TODO: move these out to be processed automatically by each `CapabilityType`
-        #             if not callable(capability.rf_tx_func):
-        #                 raise RuntimeError("No or improper rf_tx_func provided")
-        #             elif not isinstance(capability.rf_rx_pipe, simpy.Store):
-        #                raise RuntimeError("No or improper rf_rx_pipe provided")
-        #             else:
-        #                 # All good, store capability
-        #                 self.__capabilities.append(capability)
-
         # Define generic settings for all compliant devices
         self._settings = {}
-        self._settings['heartbeat_period_s'] = {
-            '_type': 'uint16',
-            '_value': 360000,
-            '_description': 'Device heartbeat period (in seconds)'
-        }
+        self.set_setting(
+            name='heartbeat_period',
+            type=Device.DataType.UINT16,
+            value=360000,
+            description='Device heartbeat period (in seconds)'
+        )
 
         # Define generic state for all compliant devices
         self._state = {}
-        self._state['firmware_version'] = {
-            '_type': 'string',
-            '_value': '0.0.1',
-            '_description': 'Device firmware version'
-        }
+        self.set_state(
+            name='firmware_version',
+            type=Device.DataType.STRING,
+            value='0.0.1',
+            description='Device firmware version'
+        )
 
     @classmethod
     def from_json(cls, filepath: str):
         """Instantiates `Device` instance from JSON file."""
         pass
+
+    def set_setting(self, name: str, type=DataType.OTHER, value=None, description=None):
+        """Sets setting to the available setting dictionary.
+
+        Args:
+            name (str): The setting name
+            type (DataType, DataType.OTHER): The setting data type
+            value (any, None): The setting value
+            description (str, None): The setting description
+        """
+
+        self._settings[name] = {
+            '_type': str(type.value),
+            '_value': value,
+            '_description': description
+        }
+
+    def set_state(self, name, type=DataType.OTHER, value=None, description=None):
+        """Sets state to the device state dictionary.
+
+        Args:
+            name (str): The state name
+            type (DataType, DataType.OTHER): The state data type
+            value (any, None): The state value
+            description (str, None): The state description
+        """
+
+        self._state[name] = {
+            '_type': str(type.value),
+            '_value': value,
+            '_description': description
+        }
 
     def run(self):
         """
@@ -200,13 +231,13 @@ class Device(object):
         portray transient device operation.
         """
         # todo: implement custom exceptions
-        raise Exception('run() must be overridden by subclass!')  
+        raise Exception('run() must be overridden by subclass!')
 
     def dump_json(self):
         """Returns device data as JSON object."""
         # Build device data
         output = {
-            # 'metadata': self._metadata.,
+            'metadata': self._metadata,
             'settings': self._settings,
             'state': self._state,
         }

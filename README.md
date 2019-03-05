@@ -1,3 +1,3 @@
 # Guardian Ecosystem Simulator
 
-Please see [http://docs.gvd3.com/]
+Please see [elexa-docs/projects/guardian/simulator](#).
