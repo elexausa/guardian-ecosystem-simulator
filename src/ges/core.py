@@ -19,9 +19,9 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 from enum import Enum
-from collections import namedtuple
+from recordclass import recordclass
 from frozendict import frozendict
-from dataclasses import dataclass
+import dataclasses
 import datetime
 import string
 import json
@@ -30,11 +30,13 @@ import logging
 
 from ges import util
 
+# Define logger
 logger = logging.getLogger(__name__)
 
+# Define environment
 ENV = simpy.rt.RealtimeEnvironment()
 
-class CommunicationTunnel(object):
+class Communicator(object):
     """Enables a process to perform many-to-many communication
     with other simulation processes.
 
@@ -43,22 +45,21 @@ class CommunicationTunnel(object):
     """
 
     class Type(Enum):
-        """Enumeration defining different communication pipe types.
+        """Enumeration defining different Communicator pipe types.
         """
         RF = 0
         TCPIP = 1
         BLUETOOTH_CLASSIC = 2
         BLUETOOTH_LE = 3
 
-
-    @dataclass
+    @dataclasses.dataclass
     class RF_Packet:
-        mac_address: str
-        battery: int
-        temperature: float
-        top: bool
-        bottom: bool
-        tilt: bool
+        mac_address: str = 'unknown'
+        battery: float = 0.0
+        temperature: float = 0.0
+        top: bool = False
+        bottom: bool = False
+        tilt: bool = False
 
 
     def __init__(self, capacity=simpy.core.Infinity, type=Type.RF):
@@ -71,7 +72,7 @@ class CommunicationTunnel(object):
         self._pipes = []
 
     @staticmethod
-    def create(type=Type.RF):
+    def create_tunnel(type=Type.RF):
         """Tunnel factory.
 
         Create tunnel of given type.
@@ -79,10 +80,10 @@ class CommunicationTunnel(object):
         Arguments:
             env (simpy.Environment, required): The simpy environment to
                 attach communication tunnel.
-            type (CommunicationTunnel.Type, optional): Defaults to
+            type (Communicator.Type, optional): Defaults to
                 Type.RF. The desired tunnel to create.
         """
-        return CommunicationTunnel(capacity=simpy.core.Infinity, type=type)
+        return Communicator(capacity=simpy.core.Infinity, type=type)
 
     def send(self, packet):
         """Send packet to all attached pipes.
@@ -115,7 +116,7 @@ class CommunicationTunnel(object):
         """Generate a new output pipe (`simpy.resources.store.Store`).
 
         Other processes can use the returned pipe to receive messages
-        from the `CommunicationPipe` instance.
+        from the `CommunicatorPipe` instance.
 
         Returns:
             simpy.resources.store.Store: New store instance
@@ -125,38 +126,62 @@ class CommunicationTunnel(object):
         return pipe
 
 
+
 class Device(object):
 
-    class DataType(Enum):
-        OTHER = 'other'
-        UINT8 = 'uint8'
-        UINT16 = 'uint16'
-        UINT32 = 'uint32'
-        INT8 = 'int8'
-        INT16 = 'int16'
-        INT32 = 'int32'
-        BOOLEAN = 'boolean'
-        FLOAT = 'float'
-        STRING = 'string'
-
-    ## Probably temporary ####
     SERIAL_NUMBER_LENGTH = 16
     MAC_ADDRESS_LENGTH = 12
-    ##########################
 
-    COMM_TUNNEL_915 = CommunicationTunnel.create(CommunicationTunnel.Type.RF)
+    COMM_TUNNEL_915 = Communicator.create_tunnel(Communicator.Type.RF)
+
+    @dataclasses.dataclass
+    class Data:
+        """Convenient dataclass for storing cross-platform
+        parsable data for device instance.
+        """
+
+        class Type(str, Enum):
+            """Defines various possible data types.
+            """
+            UNKNOWN = 'unknown'
+            UINT8 = 'uint8'
+            UINT16 = 'uint16'
+            UINT32 = 'uint32'
+            INT8 = 'int8'
+            INT16 = 'int16'
+            INT32 = 'int32'
+            BOOLEAN = 'boolean'
+            FLOAT = 'float'
+            STRING = 'string'
+
+        name: str = 'Data name'
+        type: Type = Type.UNKNOWN
+        value: object = None
+        description: str = 'Data description'
+
+
+    @dataclasses.dataclass
+    class Metadata:
+        """Frozen dataclass used to store immutable
+        device information created upon generation of
+        Metadata instance.
+        """
+        codename: str = 'unknown'
+        serial_number: str = 'unknown'
+        manufactured_at: str = 'unknown'
+        mac_address: str = 'unknown'
 
     # Define slots to override `__dict__` and restrict dynamic class modification
-    __slots__ = ('_metadata', '_settings', '_state', '_instance_name', '_rf_tx_func', '_rf_rx_pipe')
+    __slots__ = ('_instance_name', '_metadata', '_settings', '_states')
 
-    def __init__(self, codename='generic', instance_name=None):
-        # Generate generic `metadata` as frozendict; cannot be modified
-        self._metadata = {
-            'codename': str(codename),
-            'serial_number': self.generate_serial(),
-            'manufactured_at': str(datetime.datetime.now()),
-            'mac_address': self.generate_mac_addr()
-        }
+    def __init__(self, codename='unknown', instance_name=None):
+        # Generate generic `metadata`
+        self._metadata = Device.Metadata(
+            codename=codename,
+            serial_number=self.generate_serial(),
+            manufactured_at=str(datetime.datetime.now()),
+            mac_address=self.generate_mac_addr()
+        )
 
         # Validate and save instance name
         if instance_name is not None:
@@ -168,62 +193,130 @@ class Device(object):
         else:
             # Set generic instance name from generated `mac_address`
             # TODO: move format out to configuration
-            self._instance_name = 'Device-' + self._metadata['mac_address'][-4:]
+            self._instance_name = 'Device-' + self._metadata.mac_address[-4:]
 
         # Define generic settings for all compliant devices
-        self._settings = {}
-        self.set_setting(
-            name='heartbeat_period',
-            type=Device.DataType.UINT16,
-            value=360000,
-            description='Device heartbeat period (in seconds)'
+        self._settings = []
+
+        self.save_setting(
+            Device.Data(
+                name='heartbeat_period',
+                type=Device.Data.Type.UINT16,
+                value=360000,
+                description='Device heartbeat period (in seconds)'
+            )
         )
 
         # Define generic state for all compliant devices
-        self._state = {}
-        self.set_state(
-            name='firmware_version',
-            type=Device.DataType.STRING,
-            value='0.0.1',
-            description='Device firmware version'
+        self._states = []
+
+        self.save_state(
+            Device.Data(
+                name='firmware_version',
+                type=Device.Data.Type.STRING,
+                value='0.0.1',
+                description='Device firmware version'
+            )
         )
 
-    @classmethod
-    def from_json(cls, filepath: str):
-        """Instantiates `Device` instance from JSON file."""
-        pass
+    @property
+    def metadata(self):
+        """Returns all device metadata"""
+        return self._metadata
 
-    def set_setting(self, name: str, type=DataType.OTHER, value=None, description=None):
-        """Sets setting to the available setting dictionary.
+    @property
+    def settings(self):
+        """Returns all device settings"""
+        return self._settings
 
-        Args:
-            name (str): The setting name
-            type (DataType, DataType.OTHER): The setting data type
-            value (any, None): The setting value
-            description (str, None): The setting description
-        """
+    @property
+    def states(self):
+        """Returns all device states"""
+        return self._states
 
-        self._settings[name] = {
-            '_type': str(type.value),
-            '_value': value,
-            '_description': description
-        }
+    def get_setting(self, name: str):
+        """Searches for and returns the specified setting.
 
-    def set_state(self, name, type=DataType.OTHER, value=None, description=None):
-        """Sets state to the device state dictionary.
+        If a setting cannot be located, a RuntimeError is
+        raised.
 
         Args:
-            name (str): The state name
-            type (DataType, DataType.OTHER): The state data type
-            value (any, None): The state value
-            description (str, None): The state description
-        """
+            name (str): Name of the setting to locate.
 
-        self._state[name] = {
-            '_type': str(type.value),
-            '_value': value,
-            '_description': description
-        }
+        Raises:
+            RuntimeError: Raised if setting cannot be located
+
+        Returns:
+            Device.Data: The dataclass with matching name
+        """
+        # Attempt to locate setting in this nasty loop
+        for setting in self._settings:
+            if setting.name == name:
+                return setting
+
+        # Can't find setting
+        raise RuntimeError('Could not retrieve setting named "%s"' % name)
+
+    def save_setting(self, setting: Data):
+        """Saves provided setting.
+
+        If setting with the given name already exists, it
+        will be fully removed from the list and the new setting
+        will be appended.
+
+        Args:
+            setting (Device.Data): Setting data to save
+        """
+        # Remove setting if it already exists
+        for _setting in self._settings:
+            if _setting.name == setting.name:
+                # Delete
+                self._settings.remove(_setting)
+
+        # Append setting
+        self._settings.append(setting)
+
+    def get_state(self, name: str):
+        """Searches for and returns the specified state.
+
+        If a state cannot be located, a RuntimeError is
+        raised.
+
+        Args:
+            name (str): Name of the state to locate.
+
+        Raises:
+            RuntimeError: Raised if state cannot be located
+
+        Returns:
+            Device.Data: The dataclass with matching name
+        """
+        # Attempt to locate state
+        for _state in self._states:
+            if _state.name == name:
+                return _state
+
+        # Can't find state
+        raise RuntimeError('Could not retrieve state named "%s"' % name)
+
+    def save_state(self, state: Data):
+        """Saves provided state.
+
+        If state with the given name already exists, it
+        will be fully removed from the list and the new state
+        will be appended.
+
+        Args:
+            state (Device.Data): State data to save
+        """
+        # Attempt to locate and update state if it already exists
+        for _state in self._states:
+            if _state.name == state.name:
+                # Delete
+                self._states.remove(_state)
+
+        # Append setting
+        self._states.append(state)
 
     def run(self):
         """
@@ -237,9 +330,9 @@ class Device(object):
         """Returns device data as JSON object."""
         # Build device data
         output = {
-            'metadata': self._metadata,
-            'settings': self._settings,
-            'state': self._state,
+            'metadata': dataclasses.asdict(self._metadata),
+            'settings': [dataclasses.asdict(setting) for setting in self._settings],
+            'state': [dataclasses.asdict(state) for state in self._states]
         }
 
         return json.dumps(output, indent=4, sort_keys=True)

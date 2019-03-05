@@ -42,18 +42,82 @@ class Valve(core.Device):
         self._rf_rx_pipe = core.Device.COMM_TUNNEL_915.get_output_pipe()
 
         # Configure settings
-        self.set_setting(name='close_delay_s', type=core.Device.DataType.UINT16, value=5, description='Amount of time to wait (in seconds) before closing valve')
-        self.set_setting(name='location_gps_lat', type=core.Device.DataType.FLOAT, value=5, description='Latitudinal GPS coordinate')
-        self.set_setting(name='location_gps_lon', type=core.Device.DataType.FLOAT, value=5, description='Longitudinal GPS coordinate')
+        self.save_setting(
+            core.Device.Data(
+                name='close_delay_s',
+                type=core.Device.Data.Type.UINT16,
+                value=5,
+                description='Amount of time to wait (in seconds) before closing valve'
+            )
+        )
+        self.save_setting(
+            core.Device.Data(
+                name='location_gps_lat',
+                type=core.Device.Data.Type.FLOAT,
+                value=5,
+                description='Latitudinal GPS coordinate'
+            )
+        )
+        self.save_setting(
+            core.Device.Data(
+                name='location_gps_lon',
+                type=core.Device.Data.Type.FLOAT,
+                value=5,
+                description='Longitudinal GPS coordinate'
+            )
+        )
 
         # Initialize state
-        self.set_state(name='valve', type=core.Device.DataType.STRING, value='opened', description='State of valve as opened/closed/stuck')
-        self.set_state(name='motor', type=core.Device.DataType.STRING, value='resting', description='State of motor as opening/closing/resting')
-        self.set_state(name='motor_current', type=core.Device.DataType.FLOAT, value=0.0, description='Current draw of motor (in Amps)')
-        self.set_state(name='firmware_version', type=core.Device.DataType.STRING, value='4.0.0', description='Valve controller firmware version')
-        self.set_state(name='probe1_wet', type=core.Device.DataType.BOOLEAN, value=False, description='True if water detected at probe1')
+        self.save_state(
+            core.Device.Data(
+                name='valve',
+                type=core.Device.Data.Type.STRING,
+                value='opened',
+                description=''
+            )
+        )
+        self.save_state(
+            core.Device.Data(
+                name='motor',
+                type=core.Device.Data.Type.STRING,
+                value='resting',
+                description='State of motor as opening/closing/resting'
+            )
+        )
+        self.save_state(
+            core.Device.Data(
+                name='motor_current',
+                type=core.Device.Data.Type.FLOAT,
+                value=0.0,
+                description='Current draw of motor (in Amps)'
+            )
+        )
+        self.save_state(
+            core.Device.Data(
+                name='firmware_version',
+                type=core.Device.Data.Type.STRING,
+                value='4.0.0',
+                description='Valve controller firmware version'
+            )
+        )
+        self.save_state(
+            core.Device.Data(
+                name='probe1_wet',
+                type=core.Device.Data.Type.BOOLEAN,
+                value=False,
+                description='True if water detected at probe1'
+            )
+        )
+        self.save_state(
+            core.Device.Data(
+                name='valve',
+                type=core.Device.Data.Type.STRING,
+                value='opened',
+                description='State of valve as opened/closed/stuck'
+            )
+        )
 
-        # Spawn self processes
+        # # Spawn self processes
         self._main_process = core.ENV.process(self.run())
         self._leak_detect_process = core.ENV.process(self.detect_leak())
 

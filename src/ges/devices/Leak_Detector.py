@@ -30,10 +30,11 @@ logger = logging.getLogger(__name__)
 
 class Leak_Detector(core.Device):
     # Disable object `__dict__`
-    __slots__ = ('_process')
+    __slots__ = ('_process', '_leak_detect_process')
 
     LEAK_DETECT_TIMEFRAME_MIN = 1
-    LEAK_DETECT_TIMEFRAME_MAX = 1*60*60*24 # 24 hours
+    # LEAK_DETECT_TIMEFRAME_MAX = 1*60*60*24 # 24 hours
+    LEAK_DETECT_TIMEFRAME_MAX = 5 # 5 seconds
 
     NORMAL_TEMPERATURE = 73 # Fahrenheit
     TEMPERATURE_STANDARD_DEVIATION = 2 # +/- 2 degrees
@@ -45,31 +46,39 @@ class Leak_Detector(core.Device):
     def __init__(self, instance_name=None):
         super().__init__(codename='ahurani', instance_name=instance_name)
 
-        # Battery
-        self.set_state(
-            name='battery_voltage',
-            type=core.Device.DataType.UINT16,
-            value=Leak_Detector.INITIAL_BATTERY_VOLTAGE,
-            description='Battery voltage (in millivolts)'
+        # Battery state
+        self.save_state(
+            core.Device.Data(
+                name='battery_voltage',
+                type=core.Device.Data.Type.UINT16,
+                value=Leak_Detector.INITIAL_BATTERY_VOLTAGE,
+                description='Battery voltage (in millivolts)'
+            )
         )
 
-        self.set_state(
-            name='temperature',
-            type=core.Device.DataType.FLOAT,
-            value=Leak_Detector.NORMAL_TEMPERATURE,
-            description='Ambient air temperature near the device (in Fahrenheit)'
+        # Temperature state
+        self.save_state(
+            core.Device.Data(
+                name='temperature',
+                type=core.Device.Data.Type.FLOAT,
+                value=Leak_Detector.NORMAL_TEMPERATURE,
+                description='Ambient air temperature near the device (in Fahrenheit)'
+            )
         )
 
         # Set heartbeat
-        self.set_setting(
-            name='heartbeat_period',
-            type=core.Device.DataType.UINT16,
-            value=int(Leak_Detector.HEARTBEAT_PERIOD),
-            description='Device heartbeat period (in seconds)'
+        self.save_setting(
+            core.Device.Data(
+                name='heartbeat_period',
+                type=core.Device.Data.Type.UINT16,
+                value=int(Leak_Detector.HEARTBEAT_PERIOD),
+                description='Device heartbeat period (in seconds)'
+            )
         )
 
         # Start simulation process
         self._process = core.ENV.process(self.run())
+        self._leak_detect_process = core.ENV.process(self.detect_leaks())
 
     @staticmethod
     def manufacture(instance_name=None):
@@ -92,31 +101,29 @@ class Leak_Detector(core.Device):
 
         # Enter infinite loop for simulation
         while True:
-            try:
-                # Starting from unpowered
-                if not isPowered:
-                    # Update temperature
-                    self.update_temperature()
-                    self.update_battery()
+            # Starting from unpowered
+            if not isPowered:
+                # Update temperature
+                self.update_temperature()
+                self.update_battery()
 
-                    # Now powered
-                    isPowered = True
-                else:
-                    # Wait for heartbeat to report info
-                    yield core.ENV.timeout(self._settings['heartbeat_period']['_value'])
+                # Now powered
+                isPowered = True
 
-                    # It's this lil device's time to shine!
-                    COMM_TUNNEL_915.send(core.CommunicationTunnel.RF_Packet(
-                        mac_address=self._metadata['mac_address'],
-                        battery=self._state['battery_voltage']['_value'],
-                        temperature=self._state['temperature']['_value'],
-                        top=False,
-                        bottom=False,
-                        tilt=False
-                    ))
+                logger.info("POWERED ON")
+            else:
+                # Wait for heartbeat to report info
+                yield core.ENV.timeout(self.get_setting('heartbeat_period').value)
 
-            except Exception as e:
-                pass
+                # It's this lil device's time to shine!
+                COMM_TUNNEL_915.send(core.Communicator.RF_Packet(
+                    mac_address=self._metadata.mac_address,
+                    battery=self.get_state('battery_voltage').value,
+                    temperature=self.get_state('temperature').value,
+                    top=False,
+                    bottom=False,
+                    tilt=False
+                ))
 
     def detect_leaks(self):
         """Generates LEAK DETECTION messages.
@@ -129,24 +136,26 @@ class Leak_Detector(core.Device):
             # Leak
             yield core.ENV.timeout(random.randint(Leak_Detector.LEAK_DETECT_TIMEFRAME_MIN, Leak_Detector.LEAK_DETECT_TIMEFRAME_MAX))
 
+            logger.info("LEEEEEEEEEEEEEEEEEEEEEEEEEEEEAK!")
+
     def update_battery(self):
         """Updates simulated device battery.
 
         The "battery" is really just a fake voltage source that
         decreases through time according to
 
-            V(t) = INITIAL_BATTERY_VOLTAGE * (1 - (5*10^-8))^(3.154*10^7)
+            V(t) = INITIAL_BATTERY_VOLTAGE * (1 - (5*10^-8))^(core.ENV.now)
 
         where time is given in simulation timesteps (core.ENV.now),
         expected in seconds. The above equation results in ~1 year
         "battery life" by decaying the initial battery voltage over
         its lifetime.
         """
-        # Calculate voltage based on life
-        new_voltage = Leak_Detector.INITIAL_BATTERY_VOLTAGE * (1 - (5*10**-8))**(3.154*10**7)
+        new_voltage = Leak_Detector.INITIAL_BATTERY_VOLTAGE * (1 - (5*10**-8))**(core.ENV.now)
 
-        # Save
-        self.set_state('battery_voltage', type=core.Device.DataType.INT16, value=new_voltage, description='Battery voltage (in millivolts)')
+        # Get battery voltage state and update
+        battery_state = self.get_state('battery_voltage')
+        battery_state.value = new_voltage
 
     def update_temperature(self):
         """Generates normally distributed temperature around
@@ -155,5 +164,6 @@ class Leak_Detector(core.Device):
         # Randomly generate new temperature
         new_temperature = random.gauss(Leak_Detector.NORMAL_TEMPERATURE, Leak_Detector.TEMPERATURE_STANDARD_DEVIATION)
 
-        # Save
-        self.set_state('temperature', type=core.Device.DataType.FLOAT, value=new_temperature, description='Ambient air temperature near the device (in Fahrenheit)')
+        # Grab current temperature and update
+        temperature_state = self.get_state('temperature')
+        temperature_state.value = new_temperature
