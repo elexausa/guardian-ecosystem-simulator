@@ -26,6 +26,7 @@ import argparse
 import json
 
 import core
+from devices import Valve
 
 ###################
 ## Configuration ##
@@ -43,6 +44,7 @@ RANDOM_SEED = time.time()
 # Networking
 DEFAULT_IP = '127.0.0.1'
 DEFAULT_PORT = 7700
+
 
 ##########################
 ## Configure argparsing ##
@@ -72,8 +74,15 @@ parser.add_argument(
     type=int
 )
 
-class Daemon(threading.Thread):
+class GES_Daemon(threading.Thread):
     BUFFER = 1024
+
+    valves = {}
+
+    for i in range(10):
+        v = Valve()
+        valves[v._instance_name] = v
+        print(v.dump_json())
 
     def __init__(self, ip=DEFAULT_IP, port=DEFAULT_PORT):
         super().__init__()
@@ -97,6 +106,12 @@ class Daemon(threading.Thread):
         self._kill_event = threading.Event()
 
         logging.info('GES daemon created!')
+
+    def run_simulation(self):
+        logging.info('run boy run')
+
+
+        core.ENV.run()
 
     def kill(self):
         """Sets the internal killpill to halt the thread.
@@ -126,8 +141,6 @@ class Daemon(threading.Thread):
                 # Wait for data
                 data, clientaddr = self._sock.recvfrom(1024)
 
-                logging.info(data)
-
                 # Data recieved, process
                 logging.info('Packet received (%d bytes from %s:%d)' % (len(data), clientaddr[0], clientaddr[1]))
 
@@ -140,9 +153,6 @@ class Daemon(threading.Thread):
 
             # Something triggered shutdown
             logging.warn('GES daemon halted! Cause: %s' % e)
-
-            # doo dee do..
-            pass
 
     def parse_packet(self, packet: bytearray):
         """Parses raw packet and runs relevant functionality.
@@ -165,6 +175,13 @@ class Daemon(threading.Thread):
             # TODO: Good packet, handle it
             logging.info('Good packet received! \n%s' % json.dumps(packet_json, indent=4, sort_keys=True))
 
+            if 'command' in packet_json:
+                if packet_json['command'] == 'start':
+                    logging.info('starting sim')
+                    self.run_simulation()
+                if packet_json['command'] == 'get_curr_time':
+                    logging.info('current environment time: %d' % core.ENV.now)
+
 if __name__ == "__main__":
     # Record start time
     starttime = datetime.datetime.now()
@@ -177,7 +194,7 @@ if __name__ == "__main__":
     port = args.port
 
     # Spawn instance
-    daemon = Daemon(ip, port)
+    daemon = GES_Daemon(ip, port)
 
     daemon.setDaemon(True)
 

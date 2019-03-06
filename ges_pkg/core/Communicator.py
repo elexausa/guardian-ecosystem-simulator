@@ -25,6 +25,8 @@ import json
 import simpy
 import logging
 
+import core
+
 # Define logger
 logger = logging.getLogger(__name__)
 
@@ -102,7 +104,7 @@ class Communicator(object):
         events = [pipe.put(packet) for pipe in self._pipes]
 
         # Return simpy
-        return ENV.all_of(events)
+        return core.ENV.all_of(events)
 
     def get_output_pipe(self):
         """Generate a new output pipe (`simpy.resources.store.Store`).
@@ -113,6 +115,6 @@ class Communicator(object):
         Returns:
             simpy.resources.store.Store: New store instance
         """
-        pipe = simpy.Store(ENV, capacity=self._capacity)
+        pipe = simpy.Store(core.ENV, capacity=self._capacity)
         self._pipes.append(pipe)
         return pipe

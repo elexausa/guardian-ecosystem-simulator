@@ -26,7 +26,8 @@ import json
 import simpy
 import logging
 
-import util
+from core.util import generate
+from core.Communicator import Communicator
 
 # Define logger
 logger = logging.getLogger(__name__)
@@ -246,7 +247,7 @@ class Device(object):
         to generate realistic serial numbers.
         """
         # Return a random string
-        return util.generate.string(size=Device.SERIAL_NUMBER_LENGTH)
+        return generate.string(size=Device.SERIAL_NUMBER_LENGTH)
 
     def generate_mac_addr(self):
         """
@@ -254,5 +255,5 @@ class Device(object):
         to generate realistic MAC addresses.
         """
         # Return a random string
-        return util.generate.string(size=Device.MAC_ADDRESS_LENGTH)
+        return generate.string(size=Device.MAC_ADDRESS_LENGTH)
 

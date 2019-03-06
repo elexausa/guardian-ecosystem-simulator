@@ -39,11 +39,11 @@ class Valve(core.Device):
         super().__init__(codename='tiddymun', instance_name=instance_name)
 
         # Create RF 915MHz input pipe by grabbing from 915 tunnel
-        self._rf_rx_pipe = core.Device.COMM_TUNNEL_915.get_output_pipe()
+        self._rf_rx_pipe =core.Device.COMM_TUNNEL_915.get_output_pipe()
 
         # Configure settings
         self.save_setting(
-            core.Device.Data(
+           core.Device.Data(
                 name='close_delay_s',
                 type=core.Device.Data.Type.UINT16,
                 value=5,
@@ -51,7 +51,7 @@ class Valve(core.Device):
             )
         )
         self.save_setting(
-            core.Device.Data(
+           core.Device.Data(
                 name='location_gps_lat',
                 type=core.Device.Data.Type.FLOAT,
                 value=5,
@@ -59,7 +59,7 @@ class Valve(core.Device):
             )
         )
         self.save_setting(
-            core.Device.Data(
+           core.Device.Data(
                 name='location_gps_lon',
                 type=core.Device.Data.Type.FLOAT,
                 value=5,
@@ -69,7 +69,7 @@ class Valve(core.Device):
 
         # Initialize state
         self.save_state(
-            core.Device.Data(
+           core.Device.Data(
                 name='valve',
                 type=core.Device.Data.Type.STRING,
                 value='opened',
@@ -77,7 +77,7 @@ class Valve(core.Device):
             )
         )
         self.save_state(
-            core.Device.Data(
+           core.Device.Data(
                 name='motor',
                 type=core.Device.Data.Type.STRING,
                 value='resting',
@@ -85,7 +85,7 @@ class Valve(core.Device):
             )
         )
         self.save_state(
-            core.Device.Data(
+           core.Device.Data(
                 name='motor_current',
                 type=core.Device.Data.Type.FLOAT,
                 value=0.0,
@@ -93,7 +93,7 @@ class Valve(core.Device):
             )
         )
         self.save_state(
-            core.Device.Data(
+           core.Device.Data(
                 name='firmware_version',
                 type=core.Device.Data.Type.STRING,
                 value='4.0.0',
@@ -101,7 +101,7 @@ class Valve(core.Device):
             )
         )
         self.save_state(
-            core.Device.Data(
+           core.Device.Data(
                 name='probe1_wet',
                 type=core.Device.Data.Type.BOOLEAN,
                 value=False,
@@ -109,7 +109,7 @@ class Valve(core.Device):
             )
         )
         self.save_state(
-            core.Device.Data(
+           core.Device.Data(
                 name='valve',
                 type=core.Device.Data.Type.STRING,
                 value='opened',
