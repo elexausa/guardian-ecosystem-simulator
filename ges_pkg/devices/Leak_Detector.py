@@ -23,8 +23,7 @@ import logging
 import json
 import math
 
-from .. import util
-from .. import core
+import core
 
 logger = logging.getLogger(__name__)
 
@@ -33,8 +32,7 @@ class Leak_Detector(core.Device):
     __slots__ = ('_process', '_leak_detect_process')
 
     LEAK_DETECT_TIMEFRAME_MIN = 1
-    # LEAK_DETECT_TIMEFRAME_MAX = 1*60*60*24 # 24 hours
-    LEAK_DETECT_TIMEFRAME_MAX = 5 # 5 seconds
+    LEAK_DETECT_TIMEFRAME_MAX = 1*60*60*24 # 24 hours
 
     NORMAL_TEMPERATURE = 73 # Fahrenheit
     TEMPERATURE_STANDARD_DEVIATION = 2 # +/- 2 degrees
@@ -116,14 +114,17 @@ class Leak_Detector(core.Device):
                 yield core.ENV.timeout(self.get_setting('heartbeat_period').value)
 
                 # It's this lil device's time to shine!
-                COMM_TUNNEL_915.send(core.Communicator.RF_Packet(
+                packet = core.Communicator.RF_Packet(
                     mac_address=self._metadata.mac_address,
                     battery=self.get_state('battery_voltage').value,
                     temperature=self.get_state('temperature').value,
                     top=False,
                     bottom=False,
                     tilt=False
-                ))
+                )
+
+                # Send
+                COMM_TUNNEL_915.send(packet)
 
     def detect_leaks(self):
         """Generates LEAK DETECTION messages.

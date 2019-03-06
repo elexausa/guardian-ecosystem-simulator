@@ -59,10 +59,10 @@ if __name__ == "__main__":
     leak_detectors = {}
 
     try:
-        # for i in range(10):
-        #     v = Valve()
-        #     valves[v._instance_name] = v
-        #     print(v.dump_json())
+        for i in range(10):
+            v = Valve()
+            valves[v._instance_name] = v
+            print(v.dump_json())
 
         for i in range(10):
             ld = Leak_Detector()

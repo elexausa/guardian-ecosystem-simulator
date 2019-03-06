@@ -16,3 +16,26 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+import socket
+import time
+import logging
+import core
+
+sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+server_address = ('localhost', 6000)
+print('starting up on {} port {}'.format(*server_address))
+sock.bind(server_address)
+
+def gesd():
+    """Guardian Ecosystem Simulator Daemon
+    """
+    while True:
+        # Get the message
+        data, address = sock.recvfrom(1024)
+
+        print('received {} bytes from {}'.format(len(data), address))
+        print(data)
+
+if __name__ == "__main__":
+    gesd()

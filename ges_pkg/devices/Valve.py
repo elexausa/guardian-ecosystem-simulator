@@ -22,8 +22,7 @@ import simpy
 import logging
 import json
 
-from .. import util
-from .. import core
+import core
 
 logger = logging.getLogger(__name__)
 
@@ -159,47 +158,3 @@ class Valve(core.Device):
             logger.warning(self._instance_name + ' LEAK DETECTED!')
 
 
-class DyingCow(core.Device):
-    # Disable object `__dict__`
-    __slots__ = ('_process')
-
-    def __init__(self, instance_name=None):
-        super().__init__(codename='mooofasa', instance_name=instance_name)
-
-        # Start simulation process
-        self._process = core.ENV.process(self.run())
-
-    @staticmethod
-    def spawn(instance_name=None):
-        """Dying cow factory.
-
-            instance_name (str, optional): Defaults to None which triggers
-                automatic naming by Device superclass. Provide unique
-
-        Returns:
-            DyingCow: new DyingCow instance
-        """
-
-        return DyingCow(instance_name=instance_name)
-
-    def run(self):
-        """Simulates dying cow mooing at 915 MHz.
-        """
-        while True:
-            # Every 1 sec to 1 hour there's a moo, it's a slow death
-            yield core.ENV.timeout(random.randint(1,1*60*60))
-
-            # mooooooOOOooOOoOOOooOOoOOoOoo!!!
-            logger.info('moooooOOOOoOOOooOOoooOOOOooooo!!')
-
-            packet = {
-                'moo_time': core.ENV.now,
-                'who_mooed': self._instance_name,
-                'content': 'mooooooooooOOOOOOOOOOOooOoOooOoooOOooo',
-                'ear_tag': self._metadata['serial_number'],
-                'birthday': self._metadata['manufactured_at']
-            }
-
-            msg = (core.ENV.now, json.dumps(packet, indent=4, sort_keys=True))
-
-            core.Device.COMM_TUNNEL_915.send(msg)
