@@ -17,25 +17,184 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import socket
+import datetime
+import threading
+import socket, select
 import time
 import logging
+import argparse
+import json
+
 import core
 
-sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-server_address = ('localhost', 6000)
-print('starting up on {} port {}'.format(*server_address))
-sock.bind(server_address)
+###################
+## Configuration ##
+###################
 
-def gesd():
-    """Guardian Ecosystem Simulator Daemon
-    """
-    while True:
-        # Get the message
-        data, address = sock.recvfrom(1024)
+# Logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='PID-%(process)d,THR-(%(threadName)-9s),%(levelname)s,%(asctime)s: %(message)s'
+)
 
-        print('received {} bytes from {}'.format(len(data), address))
-        print(data)
+# Seed for random()
+RANDOM_SEED = time.time()
+
+# Networking
+DEFAULT_IP = '127.0.0.1'
+DEFAULT_PORT = 7700
+
+##########################
+## Configure argparsing ##
+##########################
+
+# Create parser
+parser = argparse.ArgumentParser()
+
+# Accept host address
+parser.add_argument(
+    '-ip',
+    '--ip',
+    nargs='?',
+    const=DEFAULT_IP,
+    default=DEFAULT_IP,
+    help='Specify simulator host address. Defaults to %s.' % DEFAULT_IP
+)
+
+# Accept port
+parser.add_argument(
+    '-p',
+    '--port',
+    nargs='?',
+    const=DEFAULT_PORT,
+    default=DEFAULT_PORT,
+    help='Specify simulator port. Defaults to %d.' % DEFAULT_PORT,
+    type=int
+)
+
+class Daemon(threading.Thread):
+    BUFFER = 1024
+
+    def __init__(self, ip=DEFAULT_IP, port=DEFAULT_PORT):
+        super().__init__()
+
+        # Set name
+        self.setName('ges-daemon')
+
+        # Store server information
+        self._ip = ip
+        self._port = port
+
+        # Create socket list
+        self._socks = []
+        # self._socks.append(s)
+
+        # Create and store sockets
+        self._sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        # self._sock.setblocking(0)
+
+        # Create killpill event
+        self._kill_event = threading.Event()
+
+        logging.info('GES daemon created!')
+
+    def kill(self):
+        """Sets the internal killpill to halt the thread.
+        """
+        self._kill_event.set()
+
+    def run(self):
+        """Opens UDP and listens for commands.
+
+        Opens a UDP socket on the provided IP and
+        port and enables full control of simulation
+        including but not limited to:
+            - Device spawning
+            - Change environment configuration
+            - Start/stop simulation
+        """
+        # Bind socket
+        self._sock.bind((self._ip, self._port))
+
+        logging.info('GES daemon started on %s:%d...' % (self._ip, self._port))
+
+        # Enter loop
+        try:
+            while True and not self._kill_event.is_set():
+                logging.info('Waiting for packet...')
+
+                # Wait for data
+                data, clientaddr = self._sock.recvfrom(1024)
+
+                logging.info(data)
+
+                # Data recieved, process
+                logging.info('Packet received (%d bytes from %s:%d)' % (len(data), clientaddr[0], clientaddr[1]))
+
+                # Receive and parse
+                self.parse_packet(data)
+
+        except Exception as e:
+            # TODO: make this better
+            # TODO: Ensure data persistance before killing
+
+            # Something triggered shutdown
+            logging.warn('GES daemon halted! Cause: %s' % e)
+
+            # doo dee do..
+            pass
+
+    def parse_packet(self, packet: bytearray):
+        """Parses raw packet and runs relevant functionality.
+
+        Args:
+            packet (bytearray): Raw packet as bytearray
+        """
+        # Process packet
+        try:
+            # TODO: Implement some sort of authentication here?
+            # TODO: Add a preprocessor to validate packet?
+
+            # Attempt to decode and parse as JSON
+            packet_json = json.loads(packet.decode('utf-8').replace("'", "\""))
+        except Exception as e:
+            # TODO: make this better (see https://docs.python.org/3/library/json.html#exceptions)
+            # Log parse issue and ignore packet
+            logging.warn('Error parsing packet! Cause: %s, Raw packet: %s' % (str(e), packet))
+        else:
+            # TODO: Good packet, handle it
+            logging.info('Good packet received! \n%s' % json.dumps(packet_json, indent=4, sort_keys=True))
 
 if __name__ == "__main__":
-    gesd()
+    # Record start time
+    starttime = datetime.datetime.now()
+
+    # Parse incoming arguments
+    args = parser.parse_args()
+
+    # Store networking
+    ip = args.ip
+    port = args.port
+
+    # Spawn instance
+    daemon = Daemon(ip, port)
+
+    daemon.setDaemon(True)
+
+    try:
+        # Start and join
+        daemon.start()
+        daemon.join()
+
+    except (KeyboardInterrupt, SystemExit):
+        # Clean shutdown
+        logging.warning('GES daemon shutting down...')
+
+        # Send kill
+        daemon.kill()
+
+        # Calculate duration
+        duration = round((datetime.datetime.now() - starttime).total_seconds())
+
+        # Clean exit
+        logging.info('Daemon exited. Total duration: %d seconds' % duration)

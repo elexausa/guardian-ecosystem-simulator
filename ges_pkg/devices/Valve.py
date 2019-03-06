@@ -23,6 +23,7 @@ import logging
 import json
 
 import core
+from core import util
 
 logger = logging.getLogger(__name__)
 
@@ -121,7 +122,7 @@ class Valve(core.Device):
         self._leak_detect_process = core.ENV.process(self.detect_leak())
 
     def generate_mac_addr(self):
-        return "30AEA402" + util.string_generator(size=4)
+        return "30AEA402" + util.generate.string(size=4)
 
     def run(self):
         """Simulates device transient operation.

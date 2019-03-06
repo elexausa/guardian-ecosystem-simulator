@@ -25,10 +25,9 @@ import json
 import simpy
 import logging
 
-import util
-
 # Define logger
 logger = logging.getLogger(__name__)
+
 
 class Communicator(object):
     """Enables a process to perform many-to-many communication

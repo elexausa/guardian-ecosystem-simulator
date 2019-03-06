@@ -246,7 +246,7 @@ class Device(object):
         to generate realistic serial numbers.
         """
         # Return a random string
-        return util.string_generator(size=Device.SERIAL_NUMBER_LENGTH)
+        return util.generate.string(size=Device.SERIAL_NUMBER_LENGTH)
 
     def generate_mac_addr(self):
         """
@@ -254,5 +254,5 @@ class Device(object):
         to generate realistic MAC addresses.
         """
         # Return a random string
-        return util.string_generator(size=Device.MAC_ADDRESS_LENGTH)
+        return util.generate.string(size=Device.MAC_ADDRESS_LENGTH)
 
