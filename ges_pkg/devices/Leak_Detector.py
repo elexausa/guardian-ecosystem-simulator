@@ -24,8 +24,10 @@ import json
 import math
 
 import core
+from core.Communicator import Communicator
 
 logger = logging.getLogger(__name__)
+
 
 class Leak_Detector(core.Device):
     # Disable object `__dict__`
@@ -33,16 +35,31 @@ class Leak_Detector(core.Device):
 
     LEAK_DETECT_TIMEFRAME_MIN = 1
     LEAK_DETECT_TIMEFRAME_MAX = 1*60*60*24 # 24 hours
-
-    NORMAL_TEMPERATURE = 73 # Fahrenheit
+    INITIAL_TEMPERATURE = 73.0 # Fahrenheit
     TEMPERATURE_STANDARD_DEVIATION = 2 # +/- 2 degrees
-
     INITIAL_BATTERY_VOLTAGE = 3600 # millivolts
-
     HEARTBEAT_PERIOD = 1*60*60*12 # 12 hours -> seconds
 
-    def __init__(self, env=None, instance_name=None):
-        super().__init__(env=env, codename='ahurani', instance_name=instance_name)
+    def __init__(self, env=None, comm_tunnels=None, instance_name=None):
+        super().__init__(env=env, comm_tunnels=comm_tunnels, codename='ahurani', instance_name=instance_name)
+
+        ###############################
+        ## Configure device settings ##
+        ###############################
+
+        # Heartbeat period
+        self.save_setting(
+           core.Device.Data(
+                name='heartbeat_period',
+                type=core.Device.Data.Type.UINT16,
+                value=Leak_Detector.HEARTBEAT_PERIOD,
+                description='Device heartbeat period (in seconds)'
+            )
+        )
+
+        ########################
+        ## Setup device state ##
+        ########################
 
         # Battery state
         self.save_state(
@@ -59,22 +76,12 @@ class Leak_Detector(core.Device):
             core.Device.Data(
                 name='temperature',
                 type=core.Device.Data.Type.FLOAT,
-                value=Leak_Detector.NORMAL_TEMPERATURE,
+                value=Leak_Detector.INITIAL_TEMPERATURE,
                 description='Ambient air temperature near the device (in Fahrenheit)'
             )
         )
 
-        # Set heartbeat
-        self.save_setting(
-            core.Device.Data(
-                name='heartbeat_period',
-                type=core.Device.Data.Type.UINT16,
-                value=int(Leak_Detector.HEARTBEAT_PERIOD),
-                description='Device heartbeat period (in seconds)'
-            )
-        )
-
-        # Start simulation process
+        # Spawn simulation processes
         self._process = self._env.process(self.run())
         self._leak_detect_process = self._env.process(self.detect_leaks())
 
@@ -114,7 +121,7 @@ class Leak_Detector(core.Device):
                 yield self._env.timeout(self.get_setting('heartbeat_period').value)
 
                 # It's this lil device's time to shine!
-                packet = core.Communicator.RF_Packet(
+                packet = Communicator.RF_Packet(
                     mac_address=self._metadata.mac_address,
                     battery=self.get_state('battery_voltage').value,
                     temperature=self.get_state('temperature').value,
@@ -124,7 +131,7 @@ class Leak_Detector(core.Device):
                 )
 
                 # Send
-                COMM_TUNNEL_915.send(packet)
+                self.transmit(Communicator.Type.RF, packet)
 
     def detect_leaks(self):
         """Generates LEAK DETECTION messages.

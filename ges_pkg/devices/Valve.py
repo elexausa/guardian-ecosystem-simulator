@@ -42,15 +42,21 @@ class Valve(core.Device):
         # Grab rf comm pipe
         self._rf_recv_pipe = self.get_communicator_recv_pipe(type=Communicator.Type.RF)
 
-        # Configure settings
+        ###############################
+        ## Configure device settings ##
+        ###############################
+
+        # Time to wait before reacting to leak event
         self.save_setting(
            core.Device.Data(
-                name='close_delay_s',
+                name='close_delay',
                 type=core.Device.Data.Type.UINT16,
                 value=5,
                 description='Amount of time to wait (in seconds) before closing valve'
             )
         )
+
+        # Latitudinal GPS coordinate
         self.save_setting(
            core.Device.Data(
                 name='location_gps_lat',
@@ -59,6 +65,8 @@ class Valve(core.Device):
                 description='Latitudinal GPS coordinate'
             )
         )
+
+        # Longitudinal GPS coordinate
         self.save_setting(
            core.Device.Data(
                 name='location_gps_lon',
@@ -68,47 +76,11 @@ class Valve(core.Device):
             )
         )
 
-        # Initialize state
-        self.save_state(
-           core.Device.Data(
-                name='valve',
-                type=core.Device.Data.Type.STRING,
-                value='opened',
-                description=''
-            )
-        )
-        self.save_state(
-           core.Device.Data(
-                name='motor',
-                type=core.Device.Data.Type.STRING,
-                value='resting',
-                description='State of motor as opening/closing/resting'
-            )
-        )
-        self.save_state(
-           core.Device.Data(
-                name='motor_current',
-                type=core.Device.Data.Type.FLOAT,
-                value=0.0,
-                description='Current draw of motor (in Amps)'
-            )
-        )
-        self.save_state(
-           core.Device.Data(
-                name='firmware_version',
-                type=core.Device.Data.Type.STRING,
-                value='4.0.0',
-                description='Valve controller firmware version'
-            )
-        )
-        self.save_state(
-           core.Device.Data(
-                name='probe1_wet',
-                type=core.Device.Data.Type.BOOLEAN,
-                value=False,
-                description='True if water detected at probe1'
-            )
-        )
+        ######################
+        ## Initialize state ##
+        ######################
+
+        # Valve opened/closed
         self.save_state(
            core.Device.Data(
                 name='valve',
@@ -118,7 +90,47 @@ class Valve(core.Device):
             )
         )
 
-        # # Spawn self processes
+        # Motor opening/closing/resting
+        self.save_state(
+           core.Device.Data(
+                name='motor',
+                type=core.Device.Data.Type.STRING,
+                value='resting',
+                description='State of motor as opening/closing/resting'
+            )
+        )
+
+        # Realtime motor current draw
+        self.save_state(
+           core.Device.Data(
+                name='motor_current',
+                type=core.Device.Data.Type.FLOAT,
+                value=0.0,
+                description='Current draw of motor (in Amps)'
+            )
+        )
+
+        # Firmware version
+        self.save_state(
+           core.Device.Data(
+                name='firmware_version',
+                type=core.Device.Data.Type.STRING,
+                value='4.0.0',
+                description='Valve controller firmware version'
+            )
+        )
+
+        # Probe1 wet true/false
+        self.save_state(
+           core.Device.Data(
+                name='probe1_wet',
+                type=core.Device.Data.Type.BOOLEAN,
+                value=False,
+                description='True if water detected at probe1'
+            )
+        )
+
+        # Spawn simulation processes
         self._main_process = self._env.process(self.run())
         self._env.process(self.detect_leak())
 

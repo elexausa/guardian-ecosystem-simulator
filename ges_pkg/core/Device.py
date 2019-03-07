@@ -294,3 +294,11 @@ class Device(object):
                 return tunnel.get_output_pipe()
 
         raise RuntimeError('Communicator type (%s) not available' % type)
+
+    def transmit(self, type: Communicator.Type, packet: str):
+        for tunnel in self._comm_tunnels:
+            # Check that is requested type
+            if tunnel._type == type:
+                tunnel.send(packet)
+
+        raise RuntimeError('Communicator type (%s) not available' % type)
