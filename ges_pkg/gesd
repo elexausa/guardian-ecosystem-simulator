@@ -19,13 +19,19 @@
 
 import datetime
 import threading
+
+import multiprocessing
+
 import socket, select
 import time
 import logging
 import argparse
 import json
 
+import simpy
+
 import core
+from core.Communicator import Communicator
 from devices import Valve
 
 ###################
@@ -45,6 +51,12 @@ RANDOM_SEED = time.time()
 DEFAULT_IP = '127.0.0.1'
 DEFAULT_PORT = 7700
 
+################
+## Networking ##
+################
+
+# Create socket
+sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
 ##########################
 ## Configure argparsing ##
@@ -74,113 +86,121 @@ parser.add_argument(
     type=int
 )
 
-class GES_Daemon(threading.Thread):
-    BUFFER = 1024
+###########################
+## Simulation parameters ##
+###########################
 
-    valves = {}
+# Define environment
+# env = simpy.Environment()
+env = simpy.rt.RealtimeEnvironment()
 
-    for i in range(10):
-        v = Valve()
-        valves[v._instance_name] = v
-        print(v.dump_json())
+# Create communication tunnels
+rf_comm_tunnel = Communicator.create_tunnel(env, Communicator.Type.RF)
 
-    def __init__(self, ip=DEFAULT_IP, port=DEFAULT_PORT):
-        super().__init__()
+# Define devices list
+devices = []
 
-        # Set name
-        self.setName('ges-daemon')
+# Simulator process
+process = None
 
-        # Store server information
-        self._ip = ip
-        self._port = port
+def menu():
+    """Listens for commands on UDP socket.
 
-        # Create socket list
-        self._socks = []
-        # self._socks.append(s)
+    Listens for incoming data on the UDP socket
+    as commands and enables full control of
+    simulation, including but not limited to:
+        - Device spawning
+        - Change environment configuration
+        - Start/stop simulation
+    """
+    while True:
+        # Wait for data
+        data, clientaddr = sock.recvfrom(1024)
 
-        # Create and store sockets
-        self._sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        # self._sock.setblocking(0)
+        # Data recieved, process
+        logging.info('Packet received (%d bytes from %s:%d)' % (len(data), clientaddr[0], clientaddr[1]))
 
-        # Create killpill event
-        self._kill_event = threading.Event()
+        # Receive and parse
+        parse_packet(data)
 
-        logging.info('GES daemon created!')
+def parse_packet(packet: bytearray):
+    """Parses raw packet and runs relevant functionality.
 
-    def run_simulation(self):
-        logging.info('run boy run')
+    Args:
+        packet (bytearray): Raw packet as bytearray
+    """
+    # Process packet
+    try:
+        # TODO: Implement some sort of authentication here?
+        # TODO: Add a preprocessor to validate packet?
+
+        # Attempt to decode and parse as JSON
+        packet_json = json.loads(packet.decode('utf-8').replace("'", "\""))
+    except Exception as e:
+        # TODO: make this better (see https://docs.python.org/3/library/json.html#exceptions)
+        # Log parse issue and ignore packet
+        logging.warn('Error parsing packet! Cause: %s, Raw packet: %s' % (str(e), packet))
+    else:
+        logging.info('Packet received: %s' % packet_json)
+
+        # TODO: Good packet, handle it
+
+        if 'command' in packet_json:
+            command = packet_json['command']
+
+            if command == 'spawn':
+                for i in range(100):
+                    v = Valve(env=env, comm_tunnels=[rf_comm_tunnel])
+                    devices.append(v)
+
+                logging.info('%d devices spawned' % len(devices))
+
+            if command == 'list':
+                logging.info('Listing devices')
+                for device in devices:
+                    print(device.dump_json())
+
+            if command == 'run':
+                until = None
+
+                if 'until' in packet_json:
+                    until = int(packet_json['until'])
+
+                global process
+
+                if isinstance(process, multiprocessing.Process):
+                    # Already running
+                    if process.is_alive():
+                        logging.warn('Simulation already running')
+                        return
+
+                # Create process
+                process = multiprocessing.Process(target=run_sim, args=(until,))
+                process.start()
+
+            if command == 'kill':
+                if isinstance(process, multiprocessing.Process) and process.is_alive():
+                    process.terminate()
+                    logging.info('Simulator terminated')
+                else:
+                    logging.warn('Simulator not running')
 
 
-        core.ENV.run()
+def run_sim(until=None):
+    # Sync environment
+    env.sync()
 
-    def kill(self):
-        """Sets the internal killpill to halt the thread.
-        """
-        self._kill_event.set()
+    logging.info('Simulation starting!')
 
-    def run(self):
-        """Opens UDP and listens for commands.
+    # Run
+    if until is None:
+        logging.warn('Running until killed...')
+        env.run()
+    elif isinstance(until, int):
+        logging.warn('Running until simulation time %d...' % until)
+        env.run(until=until)
 
-        Opens a UDP socket on the provided IP and
-        port and enables full control of simulation
-        including but not limited to:
-            - Device spawning
-            - Change environment configuration
-            - Start/stop simulation
-        """
-        # Bind socket
-        self._sock.bind((self._ip, self._port))
-
-        logging.info('GES daemon started on %s:%d...' % (self._ip, self._port))
-
-        # Enter loop
-        try:
-            while True and not self._kill_event.is_set():
-                logging.info('Waiting for packet...')
-
-                # Wait for data
-                data, clientaddr = self._sock.recvfrom(1024)
-
-                # Data recieved, process
-                logging.info('Packet received (%d bytes from %s:%d)' % (len(data), clientaddr[0], clientaddr[1]))
-
-                # Receive and parse
-                self.parse_packet(data)
-
-        except Exception as e:
-            # TODO: make this better
-            # TODO: Ensure data persistance before killing
-
-            # Something triggered shutdown
-            logging.warn('GES daemon halted! Cause: %s' % e)
-
-    def parse_packet(self, packet: bytearray):
-        """Parses raw packet and runs relevant functionality.
-
-        Args:
-            packet (bytearray): Raw packet as bytearray
-        """
-        # Process packet
-        try:
-            # TODO: Implement some sort of authentication here?
-            # TODO: Add a preprocessor to validate packet?
-
-            # Attempt to decode and parse as JSON
-            packet_json = json.loads(packet.decode('utf-8').replace("'", "\""))
-        except Exception as e:
-            # TODO: make this better (see https://docs.python.org/3/library/json.html#exceptions)
-            # Log parse issue and ignore packet
-            logging.warn('Error parsing packet! Cause: %s, Raw packet: %s' % (str(e), packet))
-        else:
-            # TODO: Good packet, handle it
-            logging.info('Good packet received! \n%s' % json.dumps(packet_json, indent=4, sort_keys=True))
-
-            if 'command' in packet_json:
-                if packet_json['command'] == 'start':
-                    logging.info('starting sim')
-                    self.run_simulation()
-                if packet_json['command'] == 'get_curr_time':
-                    logging.info('current environment time: %d' % core.ENV.now)
+    logging.info('Simulation complete')
 
 if __name__ == "__main__":
     # Record start time
@@ -189,29 +209,29 @@ if __name__ == "__main__":
     # Parse incoming arguments
     args = parser.parse_args()
 
-    # Store networking
+    # Store networking config
     ip = args.ip
     port = args.port
 
-    # Spawn instance
-    daemon = GES_Daemon(ip, port)
-
-    daemon.setDaemon(True)
+    # Bind socket
+    sock.bind((ip, port))
 
     try:
-        # Start and join
-        daemon.start()
-        daemon.join()
+        # for i in range(1):
+        #     v = Valve(env=env, comm_tunnels=[rf_comm_tunnel])
+        #     devices.append(v)
 
+        # logging.info('%d devices spawned' % len(devices))
+
+        # Run the thing
+        logging.info('Waiting for packet...')
+        menu()
     except (KeyboardInterrupt, SystemExit):
         # Clean shutdown
-        logging.warning('GES daemon shutting down...')
-
-        # Send kill
-        daemon.kill()
+        logging.warning('Shutting down...')
 
         # Calculate duration
         duration = round((datetime.datetime.now() - starttime).total_seconds())
 
         # Clean exit
-        logging.info('Daemon exited. Total duration: %d seconds' % duration)
+        logging.info('Exited. Total duration: %d seconds' % duration)

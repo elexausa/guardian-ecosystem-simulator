@@ -32,12 +32,11 @@ from core.Communicator import Communicator
 # Define logger
 logger = logging.getLogger(__name__)
 
+
 class Device(object):
 
     SERIAL_NUMBER_LENGTH = 16
     MAC_ADDRESS_LENGTH = 12
-
-    COMM_TUNNEL_915 = Communicator.create_tunnel(Communicator.Type.RF)
 
     @dataclasses.dataclass
     class Data:
@@ -76,9 +75,16 @@ class Device(object):
         mac_address: str = 'unknown'
 
     # Define slots to override `__dict__` and restrict dynamic class modification
-    __slots__ = ('_instance_name', '_metadata', '_settings', '_states')
+    __slots__ = ('_env', '_instance_name', '_metadata', '_settings', '_states', '_comm_tunnels')
 
-    def __init__(self, codename='unknown', instance_name=None):
+    def __init__(self, env=None, comm_tunnels=None, codename='unknown', instance_name=None):
+        # Validate environment
+        if env is None:
+            # TODO: needs rework
+            raise RuntimeError("Invalid environment provided")
+        else:
+            self._env = env
+
         # Generate generic `metadata`
         self._metadata = Device.Metadata(
             codename=codename,
@@ -98,6 +104,15 @@ class Device(object):
             # Set generic instance name from generated `mac_address`
             # TODO: move format out to configuration
             self._instance_name = 'Device-' + self._metadata.mac_address[-4:]
+
+        # Create communication tunnels list
+        self._comm_tunnels = []
+
+        # Store tunnels
+        if isinstance(comm_tunnels, list):
+            for tnl in comm_tunnels:
+                if isinstance(tnl, Communicator):
+                    self._comm_tunnels.append(tnl)
 
         # Define generic settings for all compliant devices
         self._settings = []
@@ -257,3 +272,25 @@ class Device(object):
         # Return a random string
         return generate.string(size=Device.MAC_ADDRESS_LENGTH)
 
+    def get_communicator_recv_pipe(self, type: Communicator.Type):
+        """Returns a Communicator recieve pipe.
+
+        Returns receive pipe of requested type, if it
+        does not exist, raise exception.
+
+        Arguments:
+            type (Communicator.Type): Type of recv pipe
+                to create.
+
+        Raises:
+            RuntimeError: pipe could not be created
+
+        Returns:
+            simpy.Store: recv pipe of requested communicator
+                type
+        """
+        for tunnel in self._comm_tunnels:
+            if tunnel._type == type:
+                return tunnel.get_output_pipe()
+
+        raise RuntimeError('Communicator type (%s) not available' % type)

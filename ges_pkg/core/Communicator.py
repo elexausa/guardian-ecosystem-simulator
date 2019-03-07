@@ -58,9 +58,15 @@ class Communicator(object):
         tilt: bool = False
 
 
-    def __init__(self, capacity=simpy.core.Infinity, type=Type.RF):
+    def __init__(self, env=None, capacity=simpy.core.Infinity, type=Type.RF):
+        # Validate environment
+        if env is None:
+            # TODO: needs rework
+            raise RuntimeError("Invalid environment provided")
+        else:
+            self._env = env
+
         # Store pipe configuration
-        # self._env = env
         self._capacity = capacity
         self._type = type
 
@@ -68,16 +74,18 @@ class Communicator(object):
         self._pipes = []
 
     @staticmethod
-    def create_tunnel(type=Type.RF):
+    def create_tunnel(env=None, type=Type.RF):
         """Tunnel factory.
 
         Create tunnel of given type.
 
         Arguments:
+            env (simpy.Environment): Associated simulation
+                environment.
             type (Communicator.Type, optional): Defaults to
                 Type.RF. The desired tunnel to create.
         """
-        return Communicator(capacity=simpy.core.Infinity, type=type)
+        return Communicator(env=env, type=type)
 
     def send(self, packet):
         """Send packet to all attached pipes.
@@ -104,7 +112,7 @@ class Communicator(object):
         events = [pipe.put(packet) for pipe in self._pipes]
 
         # Return simpy
-        return core.ENV.all_of(events)
+        return self._env.all_of(events)
 
     def get_output_pipe(self):
         """Generate a new output pipe (`simpy.resources.store.Store`).
@@ -115,6 +123,6 @@ class Communicator(object):
         Returns:
             simpy.resources.store.Store: New store instance
         """
-        pipe = simpy.Store(core.ENV, capacity=self._capacity)
+        pipe = simpy.Store(self._env, capacity=self._capacity)
         self._pipes.append(pipe)
         return pipe

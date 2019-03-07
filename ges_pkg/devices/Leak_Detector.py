@@ -41,8 +41,8 @@ class Leak_Detector(core.Device):
 
     HEARTBEAT_PERIOD = 1*60*60*12 # 12 hours -> seconds
 
-    def __init__(self, instance_name=None):
-        super().__init__(codename='ahurani', instance_name=instance_name)
+    def __init__(self, env=None, instance_name=None):
+        super().__init__(env=env, codename='ahurani', instance_name=instance_name)
 
         # Battery state
         self.save_state(
@@ -75,8 +75,8 @@ class Leak_Detector(core.Device):
         )
 
         # Start simulation process
-        self._process = core.ENV.process(self.run())
-        self._leak_detect_process = core.ENV.process(self.detect_leaks())
+        self._process = self._env.process(self.run())
+        self._leak_detect_process = self._env.process(self.detect_leaks())
 
     @staticmethod
     def manufacture(instance_name=None):
@@ -111,7 +111,7 @@ class Leak_Detector(core.Device):
                 logger.info("POWERED ON")
             else:
                 # Wait for heartbeat to report info
-                yield core.ENV.timeout(self.get_setting('heartbeat_period').value)
+                yield self._env.timeout(self.get_setting('heartbeat_period').value)
 
                 # It's this lil device's time to shine!
                 packet = core.Communicator.RF_Packet(
@@ -135,7 +135,7 @@ class Leak_Detector(core.Device):
         # Enter infinite loop for simulation
         while True:
             # Leak
-            yield core.ENV.timeout(random.randint(Leak_Detector.LEAK_DETECT_TIMEFRAME_MIN, Leak_Detector.LEAK_DETECT_TIMEFRAME_MAX))
+            yield self._env.timeout(random.randint(Leak_Detector.LEAK_DETECT_TIMEFRAME_MIN, Leak_Detector.LEAK_DETECT_TIMEFRAME_MAX))
 
             logger.info("LEEEEEEEEEEEEEEEEEEEEEEEEEEEEAK!")
 
@@ -145,14 +145,14 @@ class Leak_Detector(core.Device):
         The "battery" is really just a fake voltage source that
         decreases through time according to
 
-            V(t) = INITIAL_BATTERY_VOLTAGE * (1 - (5*10^-8))^(core.ENV.now)
+            V(t) = INITIAL_BATTERY_VOLTAGE * (1 - (5*10^-8))^(self._env.now)
 
-        where time is given in simulation timesteps (core.ENV.now),
+        where time is given in simulation timesteps (self._env.now),
         expected in seconds. The above equation results in ~1 year
         "battery life" by decaying the initial battery voltage over
         its lifetime.
         """
-        new_voltage = Leak_Detector.INITIAL_BATTERY_VOLTAGE * (1 - (5*10**-8))**(core.ENV.now)
+        new_voltage = Leak_Detector.INITIAL_BATTERY_VOLTAGE * (1 - (5*10**-8))**(self._env.now)
 
         # Get battery voltage state and update
         battery_state = self.get_state('battery_voltage')
