@@ -1,0 +1,259 @@
+#!/usr/bin/env python
+#
+# Copyright (C) 2019 Elexa Consumer Product, Inc.
+#
+# This file is part of the Guardian Device Simulator
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+import datetime
+import time
+import multiprocessing
+import socket, select
+import logging
+import json
+import argparse
+import simpy
+
+import core
+from core.Communicator import Communicator
+from devices import Valve
+
+###################
+## Configuration ##
+###################
+
+# Logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='PID-%(process)d,THR-(%(threadName)-9s),%(levelname)s,%(asctime)s: %(message)s'
+)
+
+# Seed for random()
+RANDOM_SEED = time.time()
+
+# Networking
+DEFAULT_IP = '127.0.0.1'
+DEFAULT_PORT = 7700
+
+################
+## Networking ##
+################
+
+# Create socket
+sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
+##########################
+## Configure argparsing ##
+##########################
+
+# Create parser
+parser = argparse.ArgumentParser()
+
+# Accept host address
+parser.add_argument(
+    '-ip',
+    '--ip',
+    nargs='?',
+    const=DEFAULT_IP,
+    default=DEFAULT_IP,
+    help='Specify simulator host address. Defaults to %s.' % DEFAULT_IP
+)
+
+# Accept port
+parser.add_argument(
+    '-p',
+    '--port',
+    nargs='?',
+    const=DEFAULT_PORT,
+    default=DEFAULT_PORT,
+    help='Specify simulator port. Defaults to %d.' % DEFAULT_PORT,
+    type=int
+)
+
+###########################
+## Simulation parameters ##
+###########################
+
+# Define environment
+# env = simpy.Environment()
+env = simpy.rt.RealtimeEnvironment()
+
+# Create communication tunnels
+rf_comm_tunnel = Communicator.create_tunnel(env, Communicator.Type.RF)
+
+# Define devices list
+devices = []
+
+# Simulator process
+process = None
+
+def menu():
+    """Listens for commands on UDP socket.
+
+    Listens for incoming data on the UDP socket
+    as commands and enables full control of
+    simulation, including but not limited to:
+        - Environment configuration
+        - Device spawning
+        - Start/stop simulation
+    """
+    while True:
+        # Wait for data
+        data, clientaddr = sock.recvfrom(1024)
+
+        # Data recieved, process
+        logging.info('Packet received (%d bytes from %s:%d)' % (len(data), clientaddr[0], clientaddr[1]))
+
+        # Receive and parse
+        parse_packet(data, clientaddr)
+
+def parse_packet(packet: bytearray, sender: tuple):
+    """Parses raw packet and runs relevant functionality.
+
+    Args:
+        packet (bytearray): Raw packet as bytearray
+        sender (tuple): Packet sender address and port
+    """
+    # Process packet
+    try:
+        # TODO: Implement some sort of authentication here?
+        # TODO: Add a preprocessor to validate packet?
+
+        # Attempt to decode and parse as JSON
+        packet_json = json.loads(packet.decode('utf-8').replace("'", "\""))
+    except Exception as e:
+        # TODO: make this better (see https://docs.python.org/3/library/json.html#exceptions)
+        # Log parse issue and ignore packet
+        logging.warn('error parsing packet! Cause: %s, Raw packet: %s' % (str(e), packet))
+    else:
+        logging.info('packet received: %s' % packet_json)
+
+        # TODO: Clean up this command handling
+
+        if 'command' in packet_json:
+            command = packet_json['command']
+
+            if command == 'spawn':
+                # Grab needed params
+                if 'type' in packet_json:
+                    d_type = packet_json['type']
+                if 'count' in packet_json:
+                    d_count = packet_json['count']
+
+                # Determine klass
+                if d_type == 'valve':
+                    klass = Valve
+
+                # Create list to collect metadata of spawned devices
+                metadata = {'devices': []}
+
+                for _ in range(d_count):
+                    # Spawn device
+                    # FIXME: this needs work to properly setup communication tunnels
+                    d = klass(env=env, comm_tunnels=[rf_comm_tunnel])
+
+                    # Store metadata
+                    metadata['devices'].append(d.metadata)
+
+                    # Add to devices
+                    devices.append(d)
+
+                logging.info('%d %s devices spawned' % (len(devices), type(d).__name__))
+
+                # Return metadata
+                sock.sendto(str.encode(str(metadata).replace("'","\"")), sender)
+
+            if command == 'list':
+                logging.info('dumping all devices')
+                for device in devices:
+                    print(device.dump_json())
+
+            if command == 'run':
+                until = None
+
+                if 'until' in packet_json:
+                    until = int(packet_json['until'])
+
+                global process
+
+                if isinstance(process, multiprocessing.Process):
+                    # Already running
+                    if process.is_alive():
+                        logging.warn('simulation already running')
+                        return
+
+                # Create process
+                process = SimulationRunner(end_at=until)
+
+                # Start 'er up
+                process.start()
+
+            if command == 'kill':
+                if isinstance(process, multiprocessing.Process) and process.is_alive():
+                    process.terminate()
+                    logging.warn('simulation terminated')
+                else:
+                    logging.info('simulation not running')
+
+
+class SimulationRunner(multiprocessing.Process):
+    def __init__(self, end_at=None):
+        super().__init__(name='ges-proc-wrapper')
+        self._end_time = end_at
+
+    def run(self):
+        # Sync environment
+        env.sync()
+
+        logging.info('resynced environment with current time')
+
+        # Run
+        if self._end_time is None:
+            logging.warn('running killed or out of events...')
+            env.run()
+        elif isinstance(self._end_time, int):
+            logging.warn('running until simulation time %d...' % self._end_time)
+            env.run(until=self._end_time)
+
+        logging.info('complete')
+
+
+if __name__ == "__main__":
+    # Record start time
+    starttime = datetime.datetime.now()
+
+    # Parse incoming arguments
+    args = parser.parse_args()
+
+    # Store networking config
+    ip = args.ip
+    port = args.port
+
+    # Bind socket
+    sock.bind((ip, port))
+
+    try:
+        # Run the thing
+        logging.info('waiting for packet...')
+        menu()
+    except (KeyboardInterrupt, SystemExit):
+        # Clean shutdown
+        logging.warning('shutting down...')
+
+        # Calculate duration
+        duration = round((datetime.datetime.now() - starttime).total_seconds())
+
+        # Clean exit
+        logging.info('exited. Total duration: %d seconds' % duration)

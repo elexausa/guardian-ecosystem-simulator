@@ -21,7 +21,7 @@ import random
 import string
 import time
 
-def string_generator(size=16, chars=string.hexdigits.upper()):
+def string(size=16, chars=string.hexdigits.upper()):
     """Generates string with provided `size` from characters in `chars`.
 
     Args:

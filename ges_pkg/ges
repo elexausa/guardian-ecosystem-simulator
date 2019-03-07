@@ -16,3 +16,32 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+from daemonize import Daemonize
+
+import click
+
+import core
+import devices
+
+
+@click.group()
+@click.version_option(version='0.1', prog_name='ges')
+def ges():
+    pass
+
+@click.command()
+def start_daemon():
+    print('started')
+    daemon.start()
+
+@click.command()
+def stop_daemon():
+    print('stopped')
+    daemon.exit()
+
+ges.add_command(start_daemon)
+ges.add_command(stop_daemon)
+
+if __name__ == '__main__':
+    ges()

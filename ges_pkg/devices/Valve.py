@@ -22,28 +22,29 @@ import simpy
 import logging
 import json
 
-from .. import util
-from .. import core
+import core
+from core.Communicator import Communicator
+from core import util
 
 logger = logging.getLogger(__name__)
 
 
 class Valve(core.Device):
     # Disable object `__dict__`
-    __slots__ = ('_main_process', '_leak_detect_process', '_rf_rx_pipe')
+    __slots__ = ('_main_process', '_rf_recv_pipe')
 
     LEAK_DETECT_TIMEFRAME_MIN = 1
     LEAK_DETECT_TIMEFRAME_MAX = 1*60*60*24*30 # 30 days
 
-    def __init__(self, instance_name=None):
-        super().__init__(codename='tiddymun', instance_name=instance_name)
+    def __init__(self, env=None, comm_tunnels=None, instance_name=None):
+        super().__init__(env=env, comm_tunnels=comm_tunnels, codename='tiddymun', instance_name=instance_name)
 
-        # Create RF 915MHz input pipe by grabbing from 915 tunnel
-        self._rf_rx_pipe = core.Device.COMM_TUNNEL_915.get_output_pipe()
+        # Grab rf comm pipe
+        self._rf_recv_pipe = self.get_communicator_recv_pipe(type=Communicator.Type.RF)
 
         # Configure settings
         self.save_setting(
-            core.Device.Data(
+           core.Device.Data(
                 name='close_delay_s',
                 type=core.Device.Data.Type.UINT16,
                 value=5,
@@ -51,7 +52,7 @@ class Valve(core.Device):
             )
         )
         self.save_setting(
-            core.Device.Data(
+           core.Device.Data(
                 name='location_gps_lat',
                 type=core.Device.Data.Type.FLOAT,
                 value=5,
@@ -59,7 +60,7 @@ class Valve(core.Device):
             )
         )
         self.save_setting(
-            core.Device.Data(
+           core.Device.Data(
                 name='location_gps_lon',
                 type=core.Device.Data.Type.FLOAT,
                 value=5,
@@ -69,7 +70,7 @@ class Valve(core.Device):
 
         # Initialize state
         self.save_state(
-            core.Device.Data(
+           core.Device.Data(
                 name='valve',
                 type=core.Device.Data.Type.STRING,
                 value='opened',
@@ -77,7 +78,7 @@ class Valve(core.Device):
             )
         )
         self.save_state(
-            core.Device.Data(
+           core.Device.Data(
                 name='motor',
                 type=core.Device.Data.Type.STRING,
                 value='resting',
@@ -85,7 +86,7 @@ class Valve(core.Device):
             )
         )
         self.save_state(
-            core.Device.Data(
+           core.Device.Data(
                 name='motor_current',
                 type=core.Device.Data.Type.FLOAT,
                 value=0.0,
@@ -93,7 +94,7 @@ class Valve(core.Device):
             )
         )
         self.save_state(
-            core.Device.Data(
+           core.Device.Data(
                 name='firmware_version',
                 type=core.Device.Data.Type.STRING,
                 value='4.0.0',
@@ -101,7 +102,7 @@ class Valve(core.Device):
             )
         )
         self.save_state(
-            core.Device.Data(
+           core.Device.Data(
                 name='probe1_wet',
                 type=core.Device.Data.Type.BOOLEAN,
                 value=False,
@@ -109,7 +110,7 @@ class Valve(core.Device):
             )
         )
         self.save_state(
-            core.Device.Data(
+           core.Device.Data(
                 name='valve',
                 type=core.Device.Data.Type.STRING,
                 value='opened',
@@ -118,11 +119,11 @@ class Valve(core.Device):
         )
 
         # # Spawn self processes
-        self._main_process = core.ENV.process(self.run())
-        self._leak_detect_process = core.ENV.process(self.detect_leak())
+        self._main_process = self._env.process(self.run())
+        self._env.process(self.detect_leak())
 
     def generate_mac_addr(self):
-        return "30AEA402" + util.string_generator(size=4)
+        return "30AEA402" + util.generate.string(size=4)
 
     def run(self):
         """Simulates device transient operation.
@@ -131,75 +132,28 @@ class Valve(core.Device):
         by other simulation events.
         """
         while True:
-            try:
-                # Get event for message pipe
-                packet = yield self._rf_rx_pipe.get()
+            # Get event for message pipe
+            packet = yield self._rf_recv_pipe.get()
 
-                if packet[0] < core.ENV.now:
-                    # if message was already put into pipe, then
-                    # message_consumer was late getting to it. Depending on what
-                    # is being modeled this, may, or may not have some
-                    # significance
-                    logger.info('%s - received packet LATE - current time %d' % (self._instance_name, core.ENV.now))
-                    # logger.info(json.dumps(json.loads(packet[1])))
-                else:
-                    # message_consumer is synchronized with message_generator
-                    logger.info('%s - received packet - current time %d - data (after NL)\n%s' % (self._instance_name, core.ENV.now, json.dumps(json.loads(packet[1]), indent=4, sort_keys=True)))
+            if packet[0] < self._env.now:
+                # if message was already put into pipe, then
+                # message_consumer was late getting to it. Depending on what
+                # is being modeled this, may, or may not have some
+                # significance
+                logger.info('%s - received packet LATE - current time %d' % (self._instance_name, self._env.now))
+                # logger.info(json.dumps(json.loads(packet[1])))
+            else:
+                # message_consumer is synchronized with message_generator
+                logger.info('%s - received packet - current time %d - data (after NL)\n%s' % (self._instance_name, self._env.now, json.dumps(json.loads(packet[1]), indent=4, sort_keys=True)))
 
-                # "Turn off the valve", 5-10 seconds
-                #yield core.ENV.timeout(random.randint(1, 3))
-            except simpy.Interrupt:
-                pass
+            # Turn off the valve, 5-10 seconds
+            yield self._env.timeout(random.randint(5, 10))
 
     def detect_leak(self):
         """Occasionally triggers a leak."""
         while True:
             # yield self._env.timeout(random.expovariate(self.MEAN_LEAK_DETECTION_TIME))
-            yield core.ENV.timeout(random.randint(60, 120))
+            yield self._env.timeout(random.randint(1, 2))
             logger.warning(self._instance_name + ' LEAK DETECTED!')
 
 
-class DyingCow(core.Device):
-    # Disable object `__dict__`
-    __slots__ = ('_process')
-
-    def __init__(self, instance_name=None):
-        super().__init__(codename='mooofasa', instance_name=instance_name)
-
-        # Start simulation process
-        self._process = core.ENV.process(self.run())
-
-    @staticmethod
-    def spawn(instance_name=None):
-        """Dying cow factory.
-
-            instance_name (str, optional): Defaults to None which triggers
-                automatic naming by Device superclass. Provide unique
-
-        Returns:
-            DyingCow: new DyingCow instance
-        """
-
-        return DyingCow(instance_name=instance_name)
-
-    def run(self):
-        """Simulates dying cow mooing at 915 MHz.
-        """
-        while True:
-            # Every 1 sec to 1 hour there's a moo, it's a slow death
-            yield core.ENV.timeout(random.randint(1,1*60*60))
-
-            # mooooooOOOooOOoOOOooOOoOOoOoo!!!
-            logger.info('moooooOOOOoOOOooOOoooOOOOooooo!!')
-
-            packet = {
-                'moo_time': core.ENV.now,
-                'who_mooed': self._instance_name,
-                'content': 'mooooooooooOOOOOOOOOOOooOoOooOoooOOooo',
-                'ear_tag': self._metadata['serial_number'],
-                'birthday': self._metadata['manufactured_at']
-            }
-
-            msg = (core.ENV.now, json.dumps(packet, indent=4, sort_keys=True))
-
-            core.Device.COMM_TUNNEL_915.send(msg)
