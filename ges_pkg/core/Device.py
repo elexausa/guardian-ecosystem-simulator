@@ -140,18 +140,18 @@ class Device(object):
 
     @property
     def metadata(self):
-        """Returns all device metadata"""
-        return self._metadata
+        """Returns all device metadata as dict"""
+        return dataclasses.asdict(self._metadata)
 
     @property
     def settings(self):
-        """Returns all device settings"""
-        return self._settings
+        """Returns all device settings as dict"""
+        return dataclasses.asdict(self._settings)
 
     @property
     def states(self):
-        """Returns all device states"""
-        return self._states
+        """Returns all device states as dict"""
+        return dataclasses.asdict(self._states)
 
     def get_setting(self, name: str):
         """Searches for and returns the specified setting.

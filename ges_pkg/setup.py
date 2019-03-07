@@ -11,9 +11,9 @@ setuptools.setup(
     url="https://github.com/elexausa/guardian-ecosystem-simulator",
     packages=setuptools.find_packages(),
     install_requires=[
-        'click',
-        'dataclasses == 0.6',
-        'simpy == 3.0.11',
+        'Click==7.0',
+        'dataclasses==0.6',
+        'simpy==3.0.11',
     ],
     classifiers=[
         "Programming Language :: Python :: 3",
