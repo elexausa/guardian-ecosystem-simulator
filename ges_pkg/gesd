@@ -151,14 +151,14 @@ def parse_packet(packet: bytearray, sender: tuple):
                     d_type = packet_json['type']
                 if 'count' in packet_json:
                     d_count = packet_json['count']
-                
+
                 # Determine klass
                 if d_type == 'valve':
                     klass = Valve
 
                 # Create list to collect metadata of spawned devices
                 metadata = {'devices': []}
- 
+
                 for _ in range(d_count):
                     # Spawn device
                     # FIXME: this needs work to properly setup communication tunnels
@@ -181,6 +181,8 @@ def parse_packet(packet: bytearray, sender: tuple):
                     print(device.dump_json())
 
             if command == 'run':
+                until = None
+
                 if 'until' in packet_json:
                     until = int(packet_json['until'])
 
@@ -205,7 +207,7 @@ def parse_packet(packet: bytearray, sender: tuple):
                 else:
                     logging.info('simulation not running')
 
-           
+
 class SimulationRunner(multiprocessing.Process):
     def __init__(self, end_at=None):
         super().__init__(name='ges-proc-wrapper')

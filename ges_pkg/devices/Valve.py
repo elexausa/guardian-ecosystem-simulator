@@ -153,7 +153,7 @@ class Valve(core.Device):
         """Occasionally triggers a leak."""
         while True:
             # yield self._env.timeout(random.expovariate(self.MEAN_LEAK_DETECTION_TIME))
-            yield self._env.timeout(random.randint(1, 60))
+            yield self._env.timeout(random.randint(1, 2))
             logger.warning(self._instance_name + ' LEAK DETECTED!')
 
 
