@@ -17,21 +17,6 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import random
-import string
-import time
-
-def string_generator(size=16, chars=string.hexdigits.upper()):
-    """Generates string with provided `size` from characters in `chars`.
-
-    Args:
-        size (int, optional): Defaults to 16. Size of the string to generate
-            in characters.
-        chars ([type], optional): Defaults to string.hexdigits.upper(). Where
-            to pull characters from for string.
-
-    Returns:
-        str: Randomly generated string
-    """
-    return ''.join(random.choice(chars) for _ in range(size))
-
+__title__ = 'guardian-ecosystem-simulator'
+__version__ = '0.5'
+__author__ = 'Alex Bennett (abennett@elexausa.com)'

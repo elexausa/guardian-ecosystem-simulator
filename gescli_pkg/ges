@@ -16,3 +16,33 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+
+import click
+import logging
+import ges
+
+###################
+## Configuration ##
+###################
+
+# Logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='[gescli,pid:%(process)d](%(levelname)s) %(message)s'
+)
+
+@click.group()
+@click.version_option(version='0.1', prog_name='ges')
+def gescli():
+    pass
+
+@click.command()
+def test():
+    print('hi')
+
+gescli.add_command(test)
+
+
+if __name__ == '__main__':
+    gescli()

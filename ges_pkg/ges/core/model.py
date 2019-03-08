@@ -19,8 +19,6 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 from enum import Enum
-from recordclass import recordclass
-from frozendict import frozendict
 import dataclasses
 import datetime
 import string
@@ -28,111 +26,17 @@ import json
 import simpy
 import logging
 
-from ges import util
+from .util import generate
+from . import communication
 
 # Define logger
 logger = logging.getLogger(__name__)
-
-# Define environment
-ENV = simpy.rt.RealtimeEnvironment()
-
-class Communicator(object):
-    """Enables a process to perform many-to-many communication
-    with other simulation processes.
-
-    Based on `Process communication example` by Keith Smith
-    in SimPy user manual 3.0.11.
-    """
-
-    class Type(Enum):
-        """Enumeration defining different Communicator pipe types.
-        """
-        RF = 0
-        TCPIP = 1
-        BLUETOOTH_CLASSIC = 2
-        BLUETOOTH_LE = 3
-
-    @dataclasses.dataclass
-    class RF_Packet:
-        mac_address: str = 'unknown'
-        battery: float = 0.0
-        temperature: float = 0.0
-        top: bool = False
-        bottom: bool = False
-        tilt: bool = False
-
-
-    def __init__(self, capacity=simpy.core.Infinity, type=Type.RF):
-        # Store pipe configuration
-        # self._env = env
-        self._capacity = capacity
-        self._type = type
-
-        # Create list to store pipes
-        self._pipes = []
-
-    @staticmethod
-    def create_tunnel(type=Type.RF):
-        """Tunnel factory.
-
-        Create tunnel of given type.
-
-        Arguments:
-            env (simpy.Environment, required): The simpy environment to
-                attach communication tunnel.
-            type (Communicator.Type, optional): Defaults to
-                Type.RF. The desired tunnel to create.
-        """
-        return Communicator(capacity=simpy.core.Infinity, type=type)
-
-    def send(self, packet):
-        """Send packet to all attached pipes.
-
-        Args:
-            packet (any): The data to send
-
-        Raises:
-            RuntimeError: No output pipes have been configured.
-
-        Returns:
-            simpy.events.AllOf: Returns an event instance that is
-                triggered once all held events complete successfully.
-        """
-        # Pipes populated?
-        if not self._pipes:
-            logger.debug('No output pipes configured, packet dropped')
-            raise RuntimeError('No output pipes configured')
-
-        logger.debug("Sending packet to %d output pipes: %s" %
-                    (len(self._pipes), packet))
-
-        # Store events created by putting data in `simpy.Store`
-        events = [pipe.put(packet) for pipe in self._pipes]
-
-        # Return simpy
-        return ENV.all_of(events)
-
-    def get_output_pipe(self):
-        """Generate a new output pipe (`simpy.resources.store.Store`).
-
-        Other processes can use the returned pipe to receive messages
-        from the `CommunicatorPipe` instance.
-
-        Returns:
-            simpy.resources.store.Store: New store instance
-        """
-        pipe = simpy.Store(ENV, capacity=self._capacity)
-        self._pipes.append(pipe)
-        return pipe
-
 
 
 class Device(object):
 
     SERIAL_NUMBER_LENGTH = 16
     MAC_ADDRESS_LENGTH = 12
-
-    COMM_TUNNEL_915 = Communicator.create_tunnel(Communicator.Type.RF)
 
     @dataclasses.dataclass
     class Data:
@@ -172,9 +76,16 @@ class Device(object):
         mac_address: str = 'unknown'
 
     # Define slots to override `__dict__` and restrict dynamic class modification
-    __slots__ = ('_instance_name', '_metadata', '_settings', '_states')
+    __slots__ = ('_env', '_instance_name', '_metadata', '_settings', '_states', '_comm_tunnels')
 
-    def __init__(self, codename='unknown', instance_name=None):
+    def __init__(self, env=None, comm_tunnels=None, codename='unknown', instance_name=None):
+        # Validate environment
+        if env is None:
+            # TODO: needs rework
+            raise RuntimeError("Invalid environment provided")
+        else:
+            self._env = env
+
         # Generate generic `metadata`
         self._metadata = Device.Metadata(
             codename=codename,
@@ -194,6 +105,15 @@ class Device(object):
             # Set generic instance name from generated `mac_address`
             # TODO: move format out to configuration
             self._instance_name = 'Device-' + self._metadata.mac_address[-4:]
+
+        # Create communication tunnels list
+        self._comm_tunnels = []
+
+        # Store tunnels
+        if isinstance(comm_tunnels, list):
+            for tnl in comm_tunnels:
+                if isinstance(tnl, communication.Communicator):
+                    self._comm_tunnels.append(tnl)
 
         # Define generic settings for all compliant devices
         self._settings = []
@@ -221,18 +141,18 @@ class Device(object):
 
     @property
     def metadata(self):
-        """Returns all device metadata"""
-        return self._metadata
+        """Returns all device metadata as dict"""
+        return dataclasses.asdict(self._metadata)
 
     @property
     def settings(self):
-        """Returns all device settings"""
-        return self._settings
+        """Returns all device settings as dict"""
+        return dataclasses.asdict(self._settings)
 
     @property
     def states(self):
-        """Returns all device states"""
-        return self._states
+        """Returns all device states as dict"""
+        return dataclasses.asdict(self._states)
 
     def get_setting(self, name: str):
         """Searches for and returns the specified setting.
@@ -343,7 +263,7 @@ class Device(object):
         to generate realistic serial numbers.
         """
         # Return a random string
-        return util.string_generator(size=Device.SERIAL_NUMBER_LENGTH)
+        return generate.string(size=Device.SERIAL_NUMBER_LENGTH)
 
     def generate_mac_addr(self):
         """
@@ -351,5 +271,35 @@ class Device(object):
         to generate realistic MAC addresses.
         """
         # Return a random string
-        return util.string_generator(size=Device.MAC_ADDRESS_LENGTH)
+        return generate.string(size=Device.MAC_ADDRESS_LENGTH)
 
+    def get_communicator_recv_pipe(self, type: communication.Communicator.Type):
+        """Returns a Communicator recieve pipe.
+
+        Returns receive pipe of requested type, if it
+        does not exist, raise exception.
+
+        Arguments:
+            type (Communicator.Type): Type of recv pipe
+                to create.
+
+        Raises:
+            RuntimeError: pipe could not be created
+
+        Returns:
+            simpy.Store: recv pipe of requested communicator
+                type
+        """
+        for tunnel in self._comm_tunnels:
+            if tunnel._type == type:
+                return tunnel.get_output_pipe()
+
+        raise RuntimeError('Communicator type (%s) not available' % type)
+
+    def transmit(self, type: communication.Communicator.Type, packet: str):
+        for tunnel in self._comm_tunnels:
+            # Check that is requested type
+            if tunnel._type == type:
+                tunnel.send(packet)
+
+        raise RuntimeError('Communicator type (%s) not available' % type)
