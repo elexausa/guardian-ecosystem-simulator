@@ -29,7 +29,6 @@ import simpy
 from ges.core import communication
 from ges.devices import Valve
 
-print(Valve)
 
 ###################
 ## Configuration ##

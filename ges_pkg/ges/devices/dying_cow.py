@@ -23,11 +23,11 @@ import logging
 import json
 
 from ..core import communication
-from ..core import device
+from ..core import model
 
 logger = logging.getLogger(__name__)
 
-class Dying_Cow(device.Device):
+class Dying_Cow(model.Device):
     # Disable object `__dict__`
     __slots__ = ('_process')
 

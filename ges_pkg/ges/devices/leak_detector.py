@@ -24,12 +24,12 @@ import json
 import math
 
 from ..core import communication
-from ..core import device
+from ..core import model
 
 logger = logging.getLogger(__name__)
 
 
-class Leak_Detector(device.Device):
+class Leak_Detector(model.Device):
     # Disable object `__dict__`
     __slots__ = ('_process', '_leak_detect_process')
 
@@ -49,9 +49,9 @@ class Leak_Detector(device.Device):
 
         # Heartbeat period
         self.save_setting(
-           device.Device.Data(
+           model.Device.Data(
                 name='heartbeat_period',
-                type=device.Device.Data.Type.UINT16,
+                type=model.Device.Data.Type.UINT16,
                 value=Leak_Detector.HEARTBEAT_PERIOD,
                 description='Device heartbeat period (in seconds)'
             )
@@ -63,9 +63,9 @@ class Leak_Detector(device.Device):
 
         # Battery state
         self.save_state(
-            device.Device.Data(
+            model.Device.Data(
                 name='battery_voltage',
-                type=device.Device.Data.Type.UINT16,
+                type=model.Device.Data.Type.UINT16,
                 value=Leak_Detector.INITIAL_BATTERY_VOLTAGE,
                 description='Battery voltage (in millivolts)'
             )
@@ -73,9 +73,9 @@ class Leak_Detector(device.Device):
 
         # Temperature state
         self.save_state(
-            device.Device.Data(
+            model.Device.Data(
                 name='temperature',
-                type=device.Device.Data.Type.FLOAT,
+                type=model.Device.Data.Type.FLOAT,
                 value=Leak_Detector.INITIAL_TEMPERATURE,
                 description='Ambient air temperature near the device (in Fahrenheit)'
             )

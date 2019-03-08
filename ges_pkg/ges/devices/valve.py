@@ -23,13 +23,13 @@ import logging
 import json
 
 from ..core import communication
-from ..core import device
+from ..core import model
 from ..core.util import generate
 
 logger = logging.getLogger(__name__)
 
 
-class Valve(device.Device):
+class Valve(model.Device):
     # Disable object `__dict__`
     __slots__ = ('_main_process', '_rf_recv_pipe')
 
@@ -48,9 +48,9 @@ class Valve(device.Device):
 
         # Time to wait before reacting to leak event
         self.save_setting(
-           device.Device.Data(
+           model.Device.Data(
                 name='close_delay',
-                type=device.Device.Data.Type.UINT16,
+                type=model.Device.Data.Type.UINT16,
                 value=5,
                 description='Amount of time to wait (in seconds) before closing valve'
             )
@@ -58,9 +58,9 @@ class Valve(device.Device):
 
         # Latitudinal GPS coordinate
         self.save_setting(
-           device.Device.Data(
+           model.Device.Data(
                 name='location_gps_lat',
-                type=device.Device.Data.Type.FLOAT,
+                type=model.Device.Data.Type.FLOAT,
                 value=5,
                 description='Latitudinal GPS coordinate'
             )
@@ -68,9 +68,9 @@ class Valve(device.Device):
 
         # Longitudinal GPS coordinate
         self.save_setting(
-           device.Device.Data(
+           model.Device.Data(
                 name='location_gps_lon',
-                type=device.Device.Data.Type.FLOAT,
+                type=model.Device.Data.Type.FLOAT,
                 value=5,
                 description='Longitudinal GPS coordinate'
             )
@@ -82,9 +82,9 @@ class Valve(device.Device):
 
         # Valve opened/closed
         self.save_state(
-           device.Device.Data(
+           model.Device.Data(
                 name='valve',
-                type=device.Device.Data.Type.STRING,
+                type=model.Device.Data.Type.STRING,
                 value='opened',
                 description='State of valve as opened/closed/stuck'
             )
@@ -92,9 +92,9 @@ class Valve(device.Device):
 
         # Motor opening/closing/resting
         self.save_state(
-           device.Device.Data(
+           model.Device.Data(
                 name='motor',
-                type=device.Device.Data.Type.STRING,
+                type=model.Device.Data.Type.STRING,
                 value='resting',
                 description='State of motor as opening/closing/resting'
             )
@@ -102,9 +102,9 @@ class Valve(device.Device):
 
         # Realtime motor current draw
         self.save_state(
-           device.Device.Data(
+           model.Device.Data(
                 name='motor_current',
-                type=device.Device.Data.Type.FLOAT,
+                type=model.Device.Data.Type.FLOAT,
                 value=0.0,
                 description='Current draw of motor (in Amps)'
             )
@@ -112,9 +112,9 @@ class Valve(device.Device):
 
         # Firmware version
         self.save_state(
-           device.Device.Data(
+           model.Device.Data(
                 name='firmware_version',
-                type=device.Device.Data.Type.STRING,
+                type=model.Device.Data.Type.STRING,
                 value='4.0.0',
                 description='Valve controller firmware version'
             )
@@ -122,9 +122,9 @@ class Valve(device.Device):
 
         # Probe1 wet true/false
         self.save_state(
-           device.Device.Data(
+           model.Device.Data(
                 name='probe1_wet',
-                type=device.Device.Data.Type.BOOLEAN,
+                type=model.Device.Data.Type.BOOLEAN,
                 value=False,
                 description='True if water detected at probe1'
             )
