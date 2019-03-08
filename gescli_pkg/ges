@@ -20,7 +20,7 @@
 
 import click
 import logging
-import guardian_ecosystem_simulator
+import ges
 
 ###################
 ## Configuration ##

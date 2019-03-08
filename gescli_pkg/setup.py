@@ -12,6 +12,7 @@ setuptools.setup(
     packages=setuptools.find_packages(),
     install_requires=[
         'Click==7.0',
+        'guardian-ecosystem-simulator==0.5'
     ],
     classifiers=[
         "Programming Language :: Python :: 3",
