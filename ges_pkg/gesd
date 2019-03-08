@@ -26,9 +26,9 @@ import json
 import argparse
 import simpy
 
-import core
-from core.Communicator import Communicator
-from devices import Valve
+from ges.core import communication
+from ges.devices import Valve
+
 
 ###################
 ## Configuration ##
@@ -37,7 +37,7 @@ from devices import Valve
 # Logging
 logging.basicConfig(
     level=logging.INFO,
-    format='PID-%(process)d,THR-(%(threadName)-9s),%(levelname)s,%(asctime)s: %(message)s'
+    format='[gesd,pid:%(process)d,thread:%(threadName)-9s](%(levelname)s) %(message)s'
 )
 
 # Seed for random()
@@ -91,7 +91,7 @@ parser.add_argument(
 env = simpy.rt.RealtimeEnvironment()
 
 # Create communication tunnels
-rf_comm_tunnel = Communicator.create_tunnel(env, Communicator.Type.RF)
+rf_comm_tunnel = communication.Communicator.create_tunnel(env, communication.Communicator.Type.RF)
 
 # Define devices list
 devices = []
@@ -136,7 +136,7 @@ def parse_packet(packet: bytearray, sender: tuple):
     except Exception as e:
         # TODO: make this better (see https://docs.python.org/3/library/json.html#exceptions)
         # Log parse issue and ignore packet
-        logging.warn('error parsing packet! Cause: %s, Raw packet: %s' % (str(e), packet))
+        logging.warning('error parsing packet! Cause: %s, Raw packet: %s' % (str(e), packet))
     else:
         logging.info('packet received: %s' % packet_json)
 
@@ -191,7 +191,7 @@ def parse_packet(packet: bytearray, sender: tuple):
                 if isinstance(process, multiprocessing.Process):
                     # Already running
                     if process.is_alive():
-                        logging.warn('simulation already running')
+                        logging.warning('simulation already running')
                         return
 
                 # Create process
@@ -203,7 +203,7 @@ def parse_packet(packet: bytearray, sender: tuple):
             if command == 'kill':
                 if isinstance(process, multiprocessing.Process) and process.is_alive():
                     process.terminate()
-                    logging.warn('simulation terminated')
+                    logging.warning('simulation terminated')
                 else:
                     logging.info('simulation not running')
 
@@ -221,10 +221,10 @@ class SimulationRunner(multiprocessing.Process):
 
         # Run
         if self._end_time is None:
-            logging.warn('running killed or out of events...')
+            logging.warning('running killed or out of events...')
             env.run()
         elif isinstance(self._end_time, int):
-            logging.warn('running until simulation time %d...' % self._end_time)
+            logging.warning('running until simulation time %d...' % self._end_time)
             env.run(until=self._end_time)
 
         logging.info('complete')

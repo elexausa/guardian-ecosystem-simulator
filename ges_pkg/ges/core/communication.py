@@ -25,8 +25,6 @@ import json
 import simpy
 import logging
 
-import core
-
 # Define logger
 logger = logging.getLogger(__name__)
 
@@ -50,6 +48,7 @@ class Communicator(object):
 
     @dataclasses.dataclass
     class RF_Packet:
+        # TODO: Move to separate 'Packet' class
         mac_address: str = 'unknown'
         battery: float = 0.0
         temperature: float = 0.0

@@ -22,14 +22,14 @@ import simpy
 import logging
 import json
 
-import core
-from core.Communicator import Communicator
-from core import util
+from ..core import communication
+from ..core import model
+from ..core.util import generate
 
 logger = logging.getLogger(__name__)
 
 
-class Valve(core.Device):
+class Valve(model.Device):
     # Disable object `__dict__`
     __slots__ = ('_main_process', '_rf_recv_pipe')
 
@@ -40,7 +40,7 @@ class Valve(core.Device):
         super().__init__(env=env, comm_tunnels=comm_tunnels, codename='tiddymun', instance_name=instance_name)
 
         # Grab rf comm pipe
-        self._rf_recv_pipe = self.get_communicator_recv_pipe(type=Communicator.Type.RF)
+        self._rf_recv_pipe = self.get_communicator_recv_pipe(type=communication.Communicator.Type.RF)
 
         ###############################
         ## Configure device settings ##
@@ -48,9 +48,9 @@ class Valve(core.Device):
 
         # Time to wait before reacting to leak event
         self.save_setting(
-           core.Device.Data(
+           model.Device.Data(
                 name='close_delay',
-                type=core.Device.Data.Type.UINT16,
+                type=model.Device.Data.Type.UINT16,
                 value=5,
                 description='Amount of time to wait (in seconds) before closing valve'
             )
@@ -58,9 +58,9 @@ class Valve(core.Device):
 
         # Latitudinal GPS coordinate
         self.save_setting(
-           core.Device.Data(
+           model.Device.Data(
                 name='location_gps_lat',
-                type=core.Device.Data.Type.FLOAT,
+                type=model.Device.Data.Type.FLOAT,
                 value=5,
                 description='Latitudinal GPS coordinate'
             )
@@ -68,9 +68,9 @@ class Valve(core.Device):
 
         # Longitudinal GPS coordinate
         self.save_setting(
-           core.Device.Data(
+           model.Device.Data(
                 name='location_gps_lon',
-                type=core.Device.Data.Type.FLOAT,
+                type=model.Device.Data.Type.FLOAT,
                 value=5,
                 description='Longitudinal GPS coordinate'
             )
@@ -82,9 +82,9 @@ class Valve(core.Device):
 
         # Valve opened/closed
         self.save_state(
-           core.Device.Data(
+           model.Device.Data(
                 name='valve',
-                type=core.Device.Data.Type.STRING,
+                type=model.Device.Data.Type.STRING,
                 value='opened',
                 description='State of valve as opened/closed/stuck'
             )
@@ -92,9 +92,9 @@ class Valve(core.Device):
 
         # Motor opening/closing/resting
         self.save_state(
-           core.Device.Data(
+           model.Device.Data(
                 name='motor',
-                type=core.Device.Data.Type.STRING,
+                type=model.Device.Data.Type.STRING,
                 value='resting',
                 description='State of motor as opening/closing/resting'
             )
@@ -102,9 +102,9 @@ class Valve(core.Device):
 
         # Realtime motor current draw
         self.save_state(
-           core.Device.Data(
+           model.Device.Data(
                 name='motor_current',
-                type=core.Device.Data.Type.FLOAT,
+                type=model.Device.Data.Type.FLOAT,
                 value=0.0,
                 description='Current draw of motor (in Amps)'
             )
@@ -112,9 +112,9 @@ class Valve(core.Device):
 
         # Firmware version
         self.save_state(
-           core.Device.Data(
+           model.Device.Data(
                 name='firmware_version',
-                type=core.Device.Data.Type.STRING,
+                type=model.Device.Data.Type.STRING,
                 value='4.0.0',
                 description='Valve controller firmware version'
             )
@@ -122,9 +122,9 @@ class Valve(core.Device):
 
         # Probe1 wet true/false
         self.save_state(
-           core.Device.Data(
+           model.Device.Data(
                 name='probe1_wet',
-                type=core.Device.Data.Type.BOOLEAN,
+                type=model.Device.Data.Type.BOOLEAN,
                 value=False,
                 description='True if water detected at probe1'
             )
@@ -135,7 +135,7 @@ class Valve(core.Device):
         self._env.process(self.detect_leak())
 
     def generate_mac_addr(self):
-        return "30AEA402" + util.generate.string(size=4)
+        return "30AEA402" + generate.string(size=4)
 
     def run(self):
         """Simulates device transient operation.

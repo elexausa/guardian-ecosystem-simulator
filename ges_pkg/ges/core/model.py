@@ -26,8 +26,8 @@ import json
 import simpy
 import logging
 
-from core.util import generate
-from core.Communicator import Communicator
+from .util import generate
+from . import communication
 
 # Define logger
 logger = logging.getLogger(__name__)
@@ -62,6 +62,7 @@ class Device(object):
         type: Type = Type.UNKNOWN
         value: object = None
         description: str = 'Data description'
+
 
     @dataclasses.dataclass
     class Metadata:
@@ -111,7 +112,7 @@ class Device(object):
         # Store tunnels
         if isinstance(comm_tunnels, list):
             for tnl in comm_tunnels:
-                if isinstance(tnl, Communicator):
+                if isinstance(tnl, communication.Communicator):
                     self._comm_tunnels.append(tnl)
 
         # Define generic settings for all compliant devices
@@ -272,7 +273,7 @@ class Device(object):
         # Return a random string
         return generate.string(size=Device.MAC_ADDRESS_LENGTH)
 
-    def get_communicator_recv_pipe(self, type: Communicator.Type):
+    def get_communicator_recv_pipe(self, type: communication.Communicator.Type):
         """Returns a Communicator recieve pipe.
 
         Returns receive pipe of requested type, if it
@@ -295,7 +296,7 @@ class Device(object):
 
         raise RuntimeError('Communicator type (%s) not available' % type)
 
-    def transmit(self, type: Communicator.Type, packet: str):
+    def transmit(self, type: communication.Communicator.Type, packet: str):
         for tunnel in self._comm_tunnels:
             # Check that is requested type
             if tunnel._type == type:

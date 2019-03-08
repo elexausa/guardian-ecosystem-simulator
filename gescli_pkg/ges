@@ -17,31 +17,32 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from daemonize import Daemonize
 
 import click
+import logging
+import ges
 
-import core
-import devices
+###################
+## Configuration ##
+###################
 
+# Logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='[gescli,pid:%(process)d](%(levelname)s) %(message)s'
+)
 
 @click.group()
 @click.version_option(version='0.1', prog_name='ges')
-def ges():
+def gescli():
     pass
 
 @click.command()
-def start_daemon():
-    print('started')
-    daemon.start()
+def test():
+    print('hi')
 
-@click.command()
-def stop_daemon():
-    print('stopped')
-    daemon.exit()
+gescli.add_command(test)
 
-ges.add_command(start_daemon)
-ges.add_command(stop_daemon)
 
 if __name__ == '__main__':
-    ges()
+    gescli()
