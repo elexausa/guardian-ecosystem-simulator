@@ -22,11 +22,12 @@ import simpy
 import logging
 import json
 
-import core
+from ..core import communication
+from ..core import device
 
 logger = logging.getLogger(__name__)
 
-class Dying_Cow(core.Device):
+class Dying_Cow(device.Device):
     # Disable object `__dict__`
     __slots__ = ('_process')
 
@@ -47,7 +48,7 @@ class Dying_Cow(core.Device):
             DyingCow: new DyingCow instance
         """
 
-        return DyingCow(instance_name=instance_name)
+        return Dying_Cow(instance_name=instance_name)
 
     def run(self):
         """Simulates dying cow mooing at 915 MHz.
@@ -63,10 +64,10 @@ class Dying_Cow(core.Device):
                 'moo_time': self._env.now,
                 'who_mooed': self._instance_name,
                 'content': 'mooooooooooOOOOOOOOOOOooOoOooOoooOOooo',
-                'ear_tag': self._metadata['serial_number'],
-                'birthday': self._metadata['manufactured_at']
+                'ear_tag': self.metadata.serial_number,
+                'birthday': self.metadata.manufactured_at
             }
 
             msg = (self._env.now, json.dumps(packet, indent=4, sort_keys=True))
 
-            core.Device.COMM_TUNNEL_915.send(msg)
+            self.transmit(communication.Communicator.Type.RF, msg)

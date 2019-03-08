@@ -23,13 +23,13 @@ import logging
 import json
 import math
 
-import core
-from core.Communicator import Communicator
+from ..core import communication
+from ..core import device
 
 logger = logging.getLogger(__name__)
 
 
-class Leak_Detector(core.Device):
+class Leak_Detector(device.Device):
     # Disable object `__dict__`
     __slots__ = ('_process', '_leak_detect_process')
 
@@ -49,9 +49,9 @@ class Leak_Detector(core.Device):
 
         # Heartbeat period
         self.save_setting(
-           core.Device.Data(
+           device.Device.Data(
                 name='heartbeat_period',
-                type=core.Device.Data.Type.UINT16,
+                type=device.Device.Data.Type.UINT16,
                 value=Leak_Detector.HEARTBEAT_PERIOD,
                 description='Device heartbeat period (in seconds)'
             )
@@ -63,9 +63,9 @@ class Leak_Detector(core.Device):
 
         # Battery state
         self.save_state(
-            core.Device.Data(
+            device.Device.Data(
                 name='battery_voltage',
-                type=core.Device.Data.Type.UINT16,
+                type=device.Device.Data.Type.UINT16,
                 value=Leak_Detector.INITIAL_BATTERY_VOLTAGE,
                 description='Battery voltage (in millivolts)'
             )
@@ -73,9 +73,9 @@ class Leak_Detector(core.Device):
 
         # Temperature state
         self.save_state(
-            core.Device.Data(
+            device.Device.Data(
                 name='temperature',
-                type=core.Device.Data.Type.FLOAT,
+                type=device.Device.Data.Type.FLOAT,
                 value=Leak_Detector.INITIAL_TEMPERATURE,
                 description='Ambient air temperature near the device (in Fahrenheit)'
             )
@@ -121,7 +121,7 @@ class Leak_Detector(core.Device):
                 yield self._env.timeout(self.get_setting('heartbeat_period').value)
 
                 # It's this lil device's time to shine!
-                packet = Communicator.RF_Packet(
+                packet = communication.Communicator.RF_Packet(
                     mac_address=self._metadata.mac_address,
                     battery=self.get_state('battery_voltage').value,
                     temperature=self.get_state('temperature').value,
@@ -131,7 +131,7 @@ class Leak_Detector(core.Device):
                 )
 
                 # Send
-                self.transmit(Communicator.Type.RF, packet)
+                self.transmit(communication.Communicator.Type.RF, packet)
 
     def detect_leaks(self):
         """Generates LEAK DETECTION messages.
@@ -170,7 +170,7 @@ class Leak_Detector(core.Device):
         `NORMAL_TEMPERATURE` with stddev of `TEMPERATURE_STANDARD_DEVIATION`.
         """
         # Randomly generate new temperature
-        new_temperature = random.gauss(Leak_Detector.NORMAL_TEMPERATURE, Leak_Detector.TEMPERATURE_STANDARD_DEVIATION)
+        new_temperature = random.gauss(self.get_state('temperature').value, Leak_Detector.TEMPERATURE_STANDARD_DEVIATION)
 
         # Grab current temperature and update
         temperature_state = self.get_state('temperature')
