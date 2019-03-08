@@ -29,14 +29,14 @@ pipeline {
         stage('Build environment') {
             steps {
                 sh '''conda create --yes -n ${BUILD_TAG} python
-                      conda activate ${BUILD_TAG}
+                      source activate ${BUILD_TAG}
                       pip install -r requirements.txt
                    '''
             }
         }
         stage('Test environment') {
             steps {
-                sh '''conda activate ${BUILD_TAG}
+                sh '''source activate ${BUILD_TAG}
                       pip list
                       which pip
                       which python
