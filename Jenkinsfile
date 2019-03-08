@@ -57,13 +57,15 @@ pipeline {
             post {
                 always {
                     // Archive unit tests for the future
-                    archiveArtifacts(allowEmptyArchive: true, artifacts: 'dist/*whl', fingerprint: true)
+                    archiveArtifacts(allowEmptyArchive: true, artifacts: 'ges_pkg/dist/*whl', fingerprint: true)
                 }
             }
         }
-        stage ('Deploy to PyPI') {
+        stage ('Deploy ges_pkg PyPI') {
             steps {
-                sh "twine upload --repository-url $ELEXA_PYPI_REPO_URL -u $ELEXA_PYPI_REPO_USER -p $ELEXA_PYPI_REPO_PASS dist/*"
+                sh '''source activate ${BUILD_TAG}
+                      twine upload --repository-url $ELEXA_PYPI_REPO_URL -u $ELEXA_PYPI_REPO_USER -p $ELEXA_PYPI_REPO_PASS ges_pkg/dist/*
+                   '''
             }
         }
     }
