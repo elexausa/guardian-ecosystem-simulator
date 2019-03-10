@@ -58,7 +58,6 @@ pipeline {
             }
             post {
                 always {
-                    // Archive unit tests for the future
                     archiveArtifacts(allowEmptyArchive: true, artifacts: 'ges_pkg/dist/*whl', fingerprint: true)
                 }
             }

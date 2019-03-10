@@ -1,8 +1,17 @@
+import os
 import setuptools
+
+__location__ = os.path.realpath(os.path.join(os.getcwd(), os.path.dirname(__file__)))
+
+# Open version file
+version_file = open(os.path.join(__location__, 'VERSION'))
+
+# Get version number
+version = version_file.read().strip()
 
 setuptools.setup(
     name='guardian-ecosystem-simulator-cli',
-    version='0.1',
+    version=version,
     scripts=['ges'] ,
     author="Alex Bennett",
     author_email="abennett@elexausa.com",
@@ -12,7 +21,7 @@ setuptools.setup(
     packages=setuptools.find_packages(),
     install_requires=[
         'Click==7.0',
-        'guardian-ecosystem-simulator==0.5'
+        'guardian-ecosystem-simulator'
     ],
     classifiers=[
         "Programming Language :: Python :: 3",
