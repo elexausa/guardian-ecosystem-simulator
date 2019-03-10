@@ -14,7 +14,7 @@ pipeline {
     }
 
     environment {
-      PATH="/opt/miniconda3/bin:$PATH"
+      PATH = "/opt/miniconda3/bin:$PATH"
       ELEXA_PYPI_REPO_URL = credentials('elexa-pypi-repo-url')
       ELEXA_PYPI_REPO_USER = credentials('elexa-pypi-repo-user')
       ELEXA_PYPI_REPO_PASS = credentials('elexa-pypi-repo-pass')
@@ -50,6 +50,8 @@ pipeline {
                 }
             }
             steps {
+                slackSend (color: '#FFFF00', message: "Building ```ges_pkg```: '${env.JOB_NAME} [${env.BUILD_NUMBER}]' (${env.BUILD_URL})")
+
                 sh '''cd ges_pkg
                       python setup.py bdist_wheel
                    '''
@@ -70,6 +72,11 @@ pipeline {
                       twine upload --repository-url $ELEXA_PYPI_REPO_URL -u $ELEXA_PYPI_REPO_USER -p $ELEXA_PYPI_REPO_PASS ges_pkg/dist/*
                    '''
             }
+            post {
+                success {
+                    slackSend (color: '#00FF00', message: "Deployed ```ges_pkg``` develop build to pypi (${ELEXA_PYPI_REPO_URL})")
+                }
+            }
         }
         stage ('Deploy master ges_pkg') {
             when {
@@ -80,6 +87,11 @@ pipeline {
                       twine upload --repository-url $ELEXA_PYPI_REPO_URL -u $ELEXA_PYPI_REPO_USER -p $ELEXA_PYPI_REPO_PASS ges_pkg/dist/*
                    '''
             }
+            post {
+                success {
+                    slackSend (color: '#00FF00', message: "Deployed ```ges_pkg``` master build to pypi (${ELEXA_PYPI_REPO_URL})")
+                }
+            }
         }
     }
     post {
@@ -89,9 +101,11 @@ pipeline {
         }
         success {
             echo 'Build succeeded'
+            slackSend (color: '#00FF00', message: "SUCCESSFUL: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' (${env.BUILD_URL})")
         }
         failure {
             echo 'Build failed'
+            slackSend (color: '#FF0000', message: "FAILED: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' (${env.BUILD_URL})")
         }
         unstable {
             echo 'Unstable build'
