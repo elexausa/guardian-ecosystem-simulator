@@ -61,7 +61,20 @@ pipeline {
                 }
             }
         }
-        stage ('Deploy ges_pkg PyPI') {
+        stage ('Deploy develop ges_pkg') {
+            when {
+                branch 'develop'
+            }
+            steps {
+                sh '''source activate ${BUILD_TAG}
+                      twine upload --repository-url $ELEXA_PYPI_REPO_URL -u $ELEXA_PYPI_REPO_USER -p $ELEXA_PYPI_REPO_PASS ges_pkg/dist/*
+                   '''
+            }
+        }
+        stage ('Deploy master ges_pkg') {
+            when {
+                branch 'master'
+            }
             steps {
                 sh '''source activate ${BUILD_TAG}
                       twine upload --repository-url $ELEXA_PYPI_REPO_URL -u $ELEXA_PYPI_REPO_USER -p $ELEXA_PYPI_REPO_PASS ges_pkg/dist/*
@@ -75,17 +88,16 @@ pipeline {
             sh 'conda remove --yes -n ${BUILD_TAG} --all'
         }
         success {
-            echo 'This will run only if successful'
+            echo 'Build succeeded'
         }
         failure {
-            echo 'This will run only if failed'
+            echo 'Build failed'
         }
         unstable {
-            echo 'This will run only if the run was marked as unstable'
+            echo 'Unstable build'
         }
         changed {
-            echo 'This will run only if the state of the Pipeline has changed'
-            echo 'For example, if the Pipeline was previously failing but is now successful'
+            echo 'Pipeline changed state (failing->successful or vice versa)'
         }
     }
 }
