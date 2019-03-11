@@ -50,7 +50,7 @@ pipeline {
                 }
             }
             steps {
-                slackSend (color: '#FFFF00', message: "Building ```ges_pkg```: '${env.JOB_NAME} [${env.BUILD_NUMBER}]' (${env.BUILD_URL})")
+                slackSend (color: '#FFFF00', message: ":exclamation: Building `ges_pkg`...\n\n ${env.JOB_NAME} [${env.BUILD_NUMBER}] (${env.BUILD_URL})")
 
                 sh '''cd ges_pkg
                       python setup.py bdist_wheel
@@ -59,6 +59,12 @@ pipeline {
             post {
                 always {
                     archiveArtifacts(allowEmptyArchive: true, artifacts: 'ges_pkg/dist/*whl', fingerprint: true)
+                }
+                success {
+                    slackSend (color: '#00FF00', message: ":heavy_check_mark: `ges_pkg` build succeeded!\n\n ${env.JOB_NAME} [${env.BUILD_NUMBER}] (${env.BUILD_URL})")
+                }
+                failure {
+                    slackSend (color: '#FF0000', message: ":heavy_multiplication_x: `ges_pkg` build failed!\n\n ${env.JOB_NAME} [${env.BUILD_NUMBER}] (${env.BUILD_URL})")
                 }
             }
         }
@@ -73,7 +79,7 @@ pipeline {
             }
             post {
                 success {
-                    slackSend (color: '#00FF00', message: "Deployed ```ges_pkg``` develop build to pypi (${ELEXA_PYPI_REPO_URL})")
+                    slackSend (color: '#00FF00', message: "Deployed `ges_pkg` origin/develop build to pypi (${ELEXA_PYPI_REPO_URL})")
                 }
             }
         }
@@ -88,7 +94,7 @@ pipeline {
             }
             post {
                 success {
-                    slackSend (color: '#00FF00', message: "Deployed ```ges_pkg``` master build to pypi (${ELEXA_PYPI_REPO_URL})")
+                    slackSend (color: '#00FF00', message: "Deployed `ges_pkg` origin/master build to pypi (${ELEXA_PYPI_REPO_URL})")
                 }
             }
         }
@@ -100,11 +106,11 @@ pipeline {
         }
         success {
             echo 'Build succeeded'
-            slackSend (color: '#00FF00', message: "SUCCESSFUL: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' (${env.BUILD_URL})")
+            slackSend (color: '#00FF00', message: ":heavy_check_mark: `guardian_ecosystem_simulator build succeeded! \n\n ${env.JOB_NAME} [${env.BUILD_NUMBER}] (${env.BUILD_URL})")
         }
         failure {
             echo 'Build failed'
-            slackSend (color: '#FF0000', message: "FAILED: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' (${env.BUILD_URL})")
+            slackSend (color: '#FF0000', message: ":heavy_multiplication_x: `guardian_ecosystem_simulator build failed! \n\n ${env.JOB_NAME} [${env.BUILD_NUMBER}] (${env.BUILD_URL})")
         }
         unstable {
             echo 'Unstable build'
