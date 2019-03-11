@@ -25,6 +25,7 @@ import json
 from ..core import communication
 from ..core import model
 from ..core.util import generate
+from ..core import communicators
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +41,7 @@ class Valve(model.Device):
         super().__init__(env=env, comm_tunnels=comm_tunnels, codename='tiddymun', instance_name=instance_name)
 
         # Grab rf comm pipe
-        self._rf_recv_pipe = self.get_communicator_recv_pipe(type=communication.Communicator.Type.RF)
+        self._rf_recv_pipe = self.get_communicator_recv_pipe(type=communicators.rf.RF)
 
         ###############################
         ## Configure device settings ##
@@ -147,7 +148,7 @@ class Valve(model.Device):
             # Get event for message pipe
             packet = yield self._rf_recv_pipe.get()
 
-            if packet[0] < self._env.now:
+            if packet.sent_at < self._env.now:
                 # if message was already put into pipe, then
                 # message_consumer was late getting to it. Depending on what
                 # is being modeled this, may, or may not have some
@@ -156,8 +157,9 @@ class Valve(model.Device):
                 # logger.info(json.dumps(json.loads(packet[1])))
             else:
                 # message_consumer is synchronized with message_generator
-                logger.info('%s - received packet - current time %d - data (after NL)\n%s' % (self._instance_name, self._env.now, json.dumps(json.loads(packet[1]), indent=4, sort_keys=True)))
+                logger.info('%s - received packet ON TIME - current time %d - data (after NL)\n%s' % (self._instance_name, self._env.now, packet.data))
 
+            continue
             # Turn off the valve, 5-10 seconds
             yield self._env.timeout(random.randint(5, 10))
 
@@ -165,7 +167,7 @@ class Valve(model.Device):
         """Occasionally triggers a leak."""
         while True:
             # yield self._env.timeout(random.expovariate(self.MEAN_LEAK_DETECTION_TIME))
-            yield self._env.timeout(random.randint(1, 2))
+            yield self._env.timeout(random.randint(1, 60))
             logger.warning(self._instance_name + ' LEAK DETECTED!')
 
 

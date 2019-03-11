@@ -27,7 +27,8 @@ import argparse
 import simpy
 
 from ges.core import communication
-from ges.devices import Valve
+from ges.core import communicators
+from ges.devices import Valve, Leak_Detector
 
 
 ###################
@@ -91,7 +92,7 @@ parser.add_argument(
 env = simpy.rt.RealtimeEnvironment()
 
 # Create communication tunnels
-rf_comm_tunnel = communication.Communicator.create_tunnel(env, communication.Communicator.Type.RF)
+rf_comm_tunnel = communicators.RF(env)
 
 # Define devices list
 devices = []
@@ -155,6 +156,8 @@ def parse_packet(packet: bytearray, sender: tuple):
                 # Determine klass
                 if d_type == 'valve':
                     klass = Valve
+                if d_type == 'leak_detector':
+                    klass = Leak_Detector
 
                 # Create list to collect metadata of spawned devices
                 metadata = {'devices': []}
@@ -170,7 +173,7 @@ def parse_packet(packet: bytearray, sender: tuple):
                     # Add to devices
                     devices.append(d)
 
-                logging.info('%d %s devices spawned' % (len(devices), type(d).__name__))
+                logging.info('%d total devices spawned' % len(devices))
 
                 # Return metadata
                 sock.sendto(str.encode(str(metadata).replace("'","\"")), sender)

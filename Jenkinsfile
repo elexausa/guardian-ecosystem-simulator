@@ -106,11 +106,11 @@ pipeline {
         }
         success {
             echo 'Build succeeded'
-            slackSend (color: '#00FF00', message: ":heavy_check_mark: `guardian_ecosystem_simulator build succeeded! \n\n ${env.JOB_NAME} [${env.BUILD_NUMBER}] (${env.BUILD_URL})")
+            slackSend (color: '#00FF00', message: ":heavy_check_mark: `guardian_ecosystem_simulator` build succeeded! \n\n ${env.JOB_NAME} [${env.BUILD_NUMBER}] (${env.BUILD_URL})")
         }
         failure {
             echo 'Build failed'
-            slackSend (color: '#FF0000', message: ":heavy_multiplication_x: `guardian_ecosystem_simulator build failed! \n\n ${env.JOB_NAME} [${env.BUILD_NUMBER}] (${env.BUILD_URL})")
+            slackSend (color: '#FF0000', message: ":heavy_multiplication_x: `guardian_ecosystem_simulator` build failed! \n\n ${env.JOB_NAME} [${env.BUILD_NUMBER}] (${env.BUILD_URL})")
         }
         unstable {
             echo 'Unstable build'

@@ -22,9 +22,11 @@ import simpy
 import logging
 import json
 import math
+import datetime
 
 from ..core import communication
 from ..core import model
+from ..core import communicators
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +36,8 @@ class Leak_Detector(model.Device):
     __slots__ = ('_process', '_leak_detect_process')
 
     LEAK_DETECT_TIMEFRAME_MIN = 1
-    LEAK_DETECT_TIMEFRAME_MAX = 1*60*60*24 # 24 hours
+    LEAK_DETECT_TIMEFRAME_MAX = 5
+    # LEAK_DETECT_TIMEFRAME_MAX = 1*60*60*24 # 24 hours
     INITIAL_TEMPERATURE = 73.0 # Fahrenheit
     TEMPERATURE_STANDARD_DEVIATION = 2 # +/- 2 degrees
     INITIAL_BATTERY_VOLTAGE = 3600 # millivolts
@@ -121,17 +124,16 @@ class Leak_Detector(model.Device):
                 yield self._env.timeout(self.get_setting('heartbeat_period').value)
 
                 # It's this lil device's time to shine!
-                packet = communication.Communicator.RF_Packet(
-                    mac_address=self._metadata.mac_address,
-                    battery=self.get_state('battery_voltage').value,
-                    temperature=self.get_state('temperature').value,
-                    top=False,
-                    bottom=False,
-                    tilt=False
+                packet = communication.Communicator.Packet(
+                    sent_at=self._env.now,
+                    created_at=str(datetime.datetime.now()),
+                    sent_by=self._metadata.mac_address,
+                    sent_to=self._metadata.mac_address,
+                    data='ping'
                 )
 
                 # Send
-                self.transmit(communication.Communicator.Type.RF, packet)
+                self.transmit(communicators.rf.RF, packet)
 
     def detect_leaks(self):
         """Generates LEAK DETECTION messages.
@@ -143,6 +145,16 @@ class Leak_Detector(model.Device):
         while True:
             # Leak
             yield self._env.timeout(random.randint(Leak_Detector.LEAK_DETECT_TIMEFRAME_MIN, Leak_Detector.LEAK_DETECT_TIMEFRAME_MAX))
+
+            packet = communication.Communicator.Packet(
+                sent_at=self._env.now,
+                created_at=str(datetime.datetime.now()),
+                sent_by=self._metadata.mac_address,
+                sent_to='unknown',
+                data='leak_detected'
+            )
+
+            self.transmit(communicators.rf.RF, packet)
 
             logger.info("LEEEEEEEEEEEEEEEEEEEEEEEEEEEEAK!")
 
