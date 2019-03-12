@@ -2,6 +2,7 @@ venv/
 venv/
 dist/
 build/
+.vscode/
 *.egg-info/
 *.pyc
 __pycache__/
