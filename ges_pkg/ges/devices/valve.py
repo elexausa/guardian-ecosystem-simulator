@@ -261,14 +261,8 @@ class Valve(model.Device):
         """
 
         if is_wet in [True, False]:
-            self.save_state(
-            model.Device.Data(
-                    name='probe1_wet',
-                    type=model.Device.Data.Type.BOOLEAN,
-                    value=is_wet,
-                    description='True if water detected at probe1'
-                )
-            )
+            value = self.get_state('probe1_wet')
+            value = is_wet
         else:
             raise TypeError("A valve's probe status must either be True or False, not {received_value}".format(received_value=is_wet))
 
@@ -283,14 +277,8 @@ class Valve(model.Device):
         """
 
         if new_state.lower() in [Valve.MotorState.opening.name, Valve.MotorState.closing.name, Valve.MotorState.resting.name]:
-            self.save_state(
-            model.Device.Data(
-                    name='motor',
-                    type=model.Device.Data.Type.STRING,
-                    value='resting',
-                    description='State of motor as opening/closing/resting'
-                )
-            )
+            value = self.get_state('motor').value
+            value = new_state
         else:
             raise TypeError("Motor state must be {opening}, {closing}, {resting}, not {received_value}.".format(opening=Valve.MotorState.opening.name,
                                                                                                                 closing=Valve.MotorState.closing.name,
@@ -308,14 +296,8 @@ class Valve(model.Device):
         """
 
         if new_status.lower() in [Valve.ValveStatus.opened.name, Valve.ValveStatus.closed.name, Valve.ValveStatus.stuck.name]:
-            self.save_state(
-            model.Device.Data(
-                    name='valve',
-                    type=model.Device.Data.Type.STRING,
-                    value=new_status,
-                    description='State of valve as opened/closed/stuck'
-                )
-            )
+            value = self.get_state('valve').value
+            value = new_status
         else:
             raise TypeError("Valve status must be {opened}, {closed}, {stuck}, not {received_value}.".format(opened=Valve.ValveStatus.opened.name,
                                                                                                             closed=Valve.ValveStatus.closed.name,
