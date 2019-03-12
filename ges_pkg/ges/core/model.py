@@ -82,7 +82,7 @@ class Device(object):
     def __init__(self, env=None, comm_tunnels=None, codename='unknown', instance_name=None):
         # Validate environment
         if env is None:
-            # TODO: needs rework
+            # TODO: needs rework - AB 03/12/2019
             raise RuntimeError("Invalid environment provided")
         else:
             self._env = env

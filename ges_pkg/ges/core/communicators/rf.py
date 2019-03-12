@@ -41,9 +41,13 @@ class RF(Communicator):
         super().__init__(env)
 
     def send(self, packet: Communicator.Packet):
-        """Passes packet to super().send_raw()
+        """Passes packet to super().send_raw().
+
+        More functionality can be added here to create a more
+        intricate communicator.
 
         Args:
             packet (Communicator.Packet): Requires Packet dataclass
         """
+        # Pass to super for sending to communicator pipes
         self.send_raw(packet)

@@ -35,10 +35,17 @@ from ges.devices import Valve, Leak_Detector
 ## Configuration ##
 ###################
 
+# TODO: Move configuration out to config class - AB 03/12/2019
+
 # Logging
+# Format: [gesd,time,process,thread](level)filename->function: message
 logging.basicConfig(
     level=logging.INFO,
-    format='[gesd,pid:%(process)d,thread:%(threadName)-9s](%(levelname)s) %(message)s'
+    format='[%(levelname)s,%(name)s,%(asctime)s,%(process)d,%(threadName)s](%(filename)s/%(funcName)s): %(message)s',
+    handlers=[
+        logging.FileHandler(filename='test.log'),
+        logging.StreamHandler()
+    ]
 )
 
 # Seed for random()
@@ -93,6 +100,7 @@ env = simpy.rt.RealtimeEnvironment()
 
 # Create communication tunnels
 rf_comm_tunnel = communicators.RF(env)
+ip_comm_tunnel = communicators.IP_Network(env)
 
 # Define devices list
 devices = []

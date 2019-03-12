@@ -52,9 +52,8 @@ class Communicator:
         sent_to: str = 'unknown'
         data: str = 'none'
 
-    def __init__(self, env, capacity=simpy.core.Infinity):
+    def __init__(self, env: simpy.core.BaseEnvironment, capacity=simpy.core.Infinity):
         # Set environment
-        # TODO: Validate
         self._env = env
 
         # Store pipe configuration
