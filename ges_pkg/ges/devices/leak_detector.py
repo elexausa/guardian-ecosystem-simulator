@@ -151,7 +151,8 @@ class Leak_Detector(model.Device):
                 created_at=str(datetime.datetime.now()),
                 sent_by=self._metadata.mac_address,
                 sent_to='unknown',
-                data='leak_detected'
+                data={"event": "leak_detected",
+                      "sent_by": self._instance_name}
             )
 
             self.transmit(communicators.rf.RF, packet)

@@ -169,9 +169,6 @@ class Valve(model.Device):
             # Get event for message pipe
             packet = yield self._rf_recv_pipe.get()
 
-            logger.info("{valve} RECEIVED PACKET => {packet}".format(valve=self._instance_name,
-                                                                     packet=packet))
-
             if packet.sent_at < self._env.now:
                 # if message was already put into pipe, then
                 # message_consumer was late getting to it. Depending on what
@@ -182,6 +179,19 @@ class Valve(model.Device):
             else:
                 # message_consumer is synchronized with message_generator
                 logger.info('%s - received packet ON TIME - current time %d - data (after NL)\n%s' % (self._instance_name, self._env.now, packet.data))
+
+            # Check if the sender is paired to the valve controller.
+            if "sent_by" in packet.data:
+                sent_by = packet.data["sent_by"]
+                for ld in self.leak_detectors:
+                    if ld._instance_name == sent_by:
+                        # Check for event.
+                        if "event" in packet.data:
+                            event = packet.data["event"]
+                            if event == "leak_detected":
+                                logger.info("{valve} RECEIVED LEAK FROM {leak_detector}".format(valve=self._instance_name,
+                                                                                                leak_detector=sent_by))
+                        break
 
             continue
             # Turn off the valve, 5-10 seconds
