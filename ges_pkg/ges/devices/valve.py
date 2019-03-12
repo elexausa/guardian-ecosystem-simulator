@@ -40,6 +40,9 @@ class Valve(model.Device):
 
     HEARTBEAT_PERIOD = 1*60*60*12 # 12 hours -> seconds
 
+    # All valves' chance to stall.
+    Valve.PERCENT_CHANGE_TO_STALL = 5
+
     MotorState = Enum("MotorState", "opening closing resting")
     ValveStatus = Enum("ValveStatus", "opened closed stuck")
 
@@ -364,8 +367,7 @@ class Valve(model.Device):
         """
 
         total_percent_chance_to_stall = 100
-        percent_chance_to_stall = 5
-        if random.randint(percent_chance_to_stall, total_percent_chance_to_stall + 1) <= percent_chance_to_stall:
+        if random.randint(0, total_percent_chance_to_stall + 1) <= Valve.PERCENT_CHANGE_TO_STALL:
             self.stall()
         else:
             self.update_valve_status(new_status=Valve.ValveStatus.closed.name)
