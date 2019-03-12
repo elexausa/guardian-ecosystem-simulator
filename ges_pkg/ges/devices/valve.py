@@ -33,10 +33,12 @@ logger = logging.getLogger(__name__)
 
 class Valve(model.Device):
     # Disable object `__dict__`
-    __slots__ = ('_main_process', '_rf_recv_pipe')
+    __slots__ = ('_main_process', '_rf_recv_pipe', '_heartbeat_process')
 
     LEAK_DETECT_TIMEFRAME_MIN = 1
     LEAK_DETECT_TIMEFRAME_MAX = 1*60*60*24*30 # 30 days
+
+    HEARTBEAT_PERIOD = 1*60*60*12 # 12 hours -> seconds
 
     MotorState = Enum("MotorState", "opening closing resting")
     ValveStatus = Enum("ValveStatus", "opened closed stuck")
@@ -50,6 +52,16 @@ class Valve(model.Device):
         ###############################
         ## Configure device settings ##
         ###############################
+
+        # Heartbeat period
+        self.save_setting(
+           model.Device.Data(
+                name='heartbeat_period',
+                type=model.Device.Data.Type.UINT16,
+                value=Valve.HEARTBEAT_PERIOD,
+                description='Device heartbeat period (in seconds)'
+            )
+        )
 
         # Time to wait before reacting to leak event
         self.save_setting(
@@ -138,6 +150,7 @@ class Valve(model.Device):
         # Spawn simulation processes
         self._main_process = self._env.process(self.run())
         self._env.process(self.detect_leak())
+        self._heartbeat_process = self.send_hearbeat()
 
     def generate_mac_addr(self):
         return "30AEA402" + generate.string(size=4)
@@ -166,6 +179,31 @@ class Valve(model.Device):
             continue
             # Turn off the valve, 5-10 seconds
             yield self._env.timeout(random.randint(5, 10))
+
+    def send_hearbeat(self):
+        """ Sends a heartbeat to show the valve controller is still online.
+        """
+        yield self._env.timeout(Valve.HEARTBEAT_PERIOD)
+
+        packet = communication.Communicator.Packet(
+            sent_at=self._env.now,
+            created_at=str(datetime.datetime.now()),
+            sent_by=self._metadata.mac_address,
+            sent_to=self._metadata.mac_address,
+            data='ping'
+        )
+
+        # Send
+        self.transmit(communicators.rf.RF, packet)
+
+    def set_heartbeat(self, new_heartbeat):
+        """ Sets all valve controllers' heartbeat period.
+        
+        Arguments:
+            new_heartbeat {UINT16} -- New heartbeat period in seconds.
+        """
+        Valve.HEARTBEAT_PERIOD = new_heartbeat
+        logger.info("Set all valve controllers' heartbeat period to {new_value} seconds.".format(new_value=new_heartbeat))
 
     def update_probe(self, is_wet):
         """ Updates the probe's status.
