@@ -21,6 +21,7 @@ import random
 import simpy
 import logging
 import json
+from enum import Enum
 
 from ..core import communication
 from ..core import model
@@ -36,6 +37,9 @@ class Valve(model.Device):
 
     LEAK_DETECT_TIMEFRAME_MIN = 1
     LEAK_DETECT_TIMEFRAME_MAX = 1*60*60*24*30 # 30 days
+
+    MotorState = Enum("MotorState", "opening closing resting")
+    ValveStatus = Enum("ValveStatus", "opened closed stuck")
 
     def __init__(self, env=None, comm_tunnels=None, instance_name=None):
         super().__init__(env=env, comm_tunnels=comm_tunnels, codename='tiddymun', instance_name=instance_name)
@@ -163,11 +167,125 @@ class Valve(model.Device):
             # Turn off the valve, 5-10 seconds
             yield self._env.timeout(random.randint(5, 10))
 
+    def update_probe(self, is_wet):
+        """ Updates the probe's status.
+        
+        Arguments:
+            is_wet {boolean} --
+                True if the probe is wet.
+                False if the probe is dry.
+        
+        Raises:
+            TypeError -- is_wet is not a boolean.
+        """
+        if is_wet in [True, False]:
+            self.save_state(
+            model.Device.Data(
+                    name='probe1_wet',
+                    type=model.Device.Data.Type.BOOLEAN,
+                    value=is_wet,
+                    description='True if water detected at probe1'
+                )
+            )
+        else:
+            raise TypeError("A valve's probe status must either be True or False, not {received_value}".format(received_value=is_wet))
+
+    def update_motor_action(self, new_state):
+        """ Updates the motor's action status.
+        
+        Arguments:
+            new_state {Valve.MotorState} -- The new motor action status.
+        
+        Raises:
+            TypeError -- new_state is not a type of allowed motor state.
+        """
+        if new_state.lower() in [Valve.MotorState.opening.name, Valve.MotorState.closing.name, Valve.MotorState.resting.name]:
+            self.save_state(
+            model.Device.Data(
+                    name='motor',
+                    type=model.Device.Data.Type.STRING,
+                    value='resting',
+                    description='State of motor as opening/closing/resting'
+                )
+            )
+        else:
+            raise TypeError("Motor state must be {opening}, {closing}, {resting}, not {received_value}.".format(opening=Valve.MotorState.opening.name,
+                                                                                                                closing=Valve.MotorState.closing.name,
+                                                                                                                resting=Valve.MotorState.resting.name,
+                                                                                                                received_value=new_state))
+
+    def update_valve_status(self, new_status):
+        """ Updates the valve's status.
+        
+        Arguments:
+            new_status {Valve.ValveStatus} -- The new valve status.
+        
+        Raises:
+            TypeError -- new_status is not a type of allowed valve status.
+        """
+        if new_status.lower() in [Valve.ValveStatus.opened.name, Valve.ValveStatus.closed.name, Valve.ValveStatus.stuck.name]:
+            self.save_state(
+            model.Device.Data(
+                    name='valve',
+                    type=model.Device.Data.Type.STRING,
+                    value=new_status,
+                    description='State of valve as opened/closed/stuck'
+                )
+            )
+        else:
+            raise TypeError("Valve status must be {opened}, {closed}, {stuck}, not {received_value}.".format(opened=Valve.ValveStatus.opened.name,
+                                                                                                            closed=Valve.ValveStatus.closed.name,
+                                                                                                            stuck=Valve.ValveStatus.stuck.name,
+                                                                                                            received_value=new_status))
+
     def detect_leak(self):
-        """Occasionally triggers a leak."""
+        """ Occasionally triggers a leak.
+        """
         while True:
             # yield self._env.timeout(random.expovariate(self.MEAN_LEAK_DETECTION_TIME))
             yield self._env.timeout(random.randint(1, 60))
-            logger.warning(self._instance_name + ' LEAK DETECTED!')
 
+            self.update_probe(is_wet=True)
 
+            logger.warning(self._instance_name + ' LEAK DETECTED! CLOSING VALVE!')
+
+            logger.info("{valve} MOTOR IS CLOSING!".format(valve=self._instance_name))
+            self.update_motor_action(new_state=Valve.MotorState.closing.name)        
+            # Wait 5 seconds for motor to close.
+            yield self._env.timeout(5)
+
+            self.close()
+
+            self.update_motor_action(Valve.MotorState.opening.name)
+            logger.info("{valve} MOTOR IS OPENING!".format(valve=self._instance_name))
+            # Wait 5 seconds for motor to open.
+            yield self._env.timeout(5)
+
+            self.open()
+
+    def stall(self):
+        """ Stalls the valve controller.
+        """
+        self.update_valve_status(new_status=Valve.ValveStatus.stuck.name)
+        logger.warning("{valve} STALLED!".format(valve=self._instance_name))
+        # Wait 2 minutes for a "person" to come fix the valve.
+        # yield self._env.timeout(120)
+
+    def open(self):
+        """ Opens the valve.
+        """
+        self.update_probe(is_wet=False)
+
+        self.update_valve_status(Valve.ValveStatus.opened.name)
+        logger.info("{valve} IS OPENED!".format(valve=self._instance_name))
+
+    def close(self):
+        """ Closes the valve. Small chance to stall.
+        """
+        total_percent_chance_to_stall = 100
+        percent_chance_to_stall = 5
+        if random.randint(percent_chance_to_stall, total_percent_chance_to_stall + 1) <= percent_chance_to_stall:
+            self.stall()
+        else:
+            self.update_valve_status(new_status=Valve.ValveStatus.closed.name)
+            logger.info("{valve} CLOSED!".format(valve=self._instance_name))
