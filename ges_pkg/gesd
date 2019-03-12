@@ -210,6 +210,29 @@ def parse_packet(packet: bytearray, sender: tuple):
                 else:
                     logging.info('simulation not running')
 
+            if command == "add_leak_detector":
+                if "valve_controller" in packet_json:
+                    valve_controller_name = packet_json["valve_controller"]
+                    for d in devices:
+                        if d._instance_name == valve_controller_name:
+                            new_leak_detector = Leak_Detector(env=env,
+                                                            comm_tunnels=[rf_comm_tunnel])
+                            d.add_leak_detector(leak_detector=new_leak_detector)
+                            # metadata['devices'].append(d.metadata)
+                            devices.append(new_leak_detector)
+                            break
+                else:
+                    raise RuntimeError("Unable to add leak detector => value \"valve_controller\" must be supplied.")
+
+            if command == "list_leak_detectors":
+                if "valve_controller" in packet_json:
+                    valve_controller_name = packet_json["valve_controller"]
+                    for d in devices:
+                        if d._instance_name == valve_controller_name:
+                            d.list_leak_detectors()
+                            break
+                else:
+                    raise RuntimeError("Unable to list leak detectors => value \"valve_controller\" must be supplied.")
 
 class SimulationRunner(multiprocessing.Process):
     def __init__(self, end_at=None):

@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 
 class Valve(model.Device):
     # Disable object `__dict__`
-    __slots__ = ('_main_process', '_rf_recv_pipe', '_heartbeat_process')
+    __slots__ = ('_main_process', '_rf_recv_pipe', '_heartbeat_process', 'leak_detectors')
 
     LEAK_DETECT_TIMEFRAME_MIN = 1
     LEAK_DETECT_TIMEFRAME_MAX = 1*60*60*24*30 # 30 days
@@ -147,6 +147,9 @@ class Valve(model.Device):
             )
         )
 
+        # Leak detectors that are paired to the valve controller.
+        self.leak_detectors = []
+
         # Spawn simulation processes
         self._main_process = self._env.process(self.run())
         self._env.process(self.detect_leak())
@@ -161,9 +164,13 @@ class Valve(model.Device):
         During normal operation the device can be interrupted
         by other simulation events.
         """
+
         while True:
             # Get event for message pipe
             packet = yield self._rf_recv_pipe.get()
+
+            logger.info("{valve} RECEIVED PACKET => {packet}".format(valve=self._instance_name,
+                                                                     packet=packet))
 
             if packet.sent_at < self._env.now:
                 # if message was already put into pipe, then
@@ -180,9 +187,27 @@ class Valve(model.Device):
             # Turn off the valve, 5-10 seconds
             yield self._env.timeout(random.randint(5, 10))
 
+    def add_leak_detector(self, leak_detector):
+        """ Pairs a leak detector.
+        
+        Arguments:
+            leak_detector {Leak_Detector} -- The new leak detector to be paired.
+        """
+
+        self.leak_detectors.append(leak_detector)
+
+    def list_leak_detectors(self):
+        """ Lists all leak detectors paired to a valve controller.
+        """
+
+        logger.log("Leak detectors paired to {valve}:".format(valve=self._instance_name))
+        for ld in self.leak_detectors:
+            logger.log("\t{leak_detector}".format(leak_detector=ld._instance_name))
+
     def send_hearbeat(self):
         """ Sends a heartbeat to show the valve controller is still online.
         """
+
         yield self._env.timeout(Valve.HEARTBEAT_PERIOD)
 
         packet = communication.Communicator.Packet(
@@ -202,6 +227,7 @@ class Valve(model.Device):
         Arguments:
             new_heartbeat {UINT16} -- New heartbeat period in seconds.
         """
+        
         Valve.HEARTBEAT_PERIOD = new_heartbeat
         logger.info("Set all valve controllers' heartbeat period to {new_value} seconds.".format(new_value=new_heartbeat))
 
@@ -216,6 +242,7 @@ class Valve(model.Device):
         Raises:
             TypeError -- is_wet is not a boolean.
         """
+
         if is_wet in [True, False]:
             self.save_state(
             model.Device.Data(
@@ -237,6 +264,7 @@ class Valve(model.Device):
         Raises:
             TypeError -- new_state is not a type of allowed motor state.
         """
+
         if new_state.lower() in [Valve.MotorState.opening.name, Valve.MotorState.closing.name, Valve.MotorState.resting.name]:
             self.save_state(
             model.Device.Data(
@@ -261,6 +289,7 @@ class Valve(model.Device):
         Raises:
             TypeError -- new_status is not a type of allowed valve status.
         """
+
         if new_status.lower() in [Valve.ValveStatus.opened.name, Valve.ValveStatus.closed.name, Valve.ValveStatus.stuck.name]:
             self.save_state(
             model.Device.Data(
@@ -279,6 +308,7 @@ class Valve(model.Device):
     def detect_leak(self):
         """ Occasionally triggers a leak.
         """
+
         while True:
             # yield self._env.timeout(random.expovariate(self.MEAN_LEAK_DETECTION_TIME))
             yield self._env.timeout(random.randint(1, 60))
@@ -304,6 +334,7 @@ class Valve(model.Device):
     def stall(self):
         """ Stalls the valve controller.
         """
+
         self.update_valve_status(new_status=Valve.ValveStatus.stuck.name)
         logger.warning("{valve} STALLED!".format(valve=self._instance_name))
         # Wait 2 minutes for a "person" to come fix the valve.
@@ -312,6 +343,7 @@ class Valve(model.Device):
     def open(self):
         """ Opens the valve.
         """
+
         self.update_probe(is_wet=False)
 
         self.update_valve_status(Valve.ValveStatus.opened.name)
@@ -320,6 +352,7 @@ class Valve(model.Device):
     def close(self):
         """ Closes the valve. Small chance to stall.
         """
+
         total_percent_chance_to_stall = 100
         percent_chance_to_stall = 5
         if random.randint(percent_chance_to_stall, total_percent_chance_to_stall + 1) <= percent_chance_to_stall:
