@@ -41,7 +41,11 @@ class Valve(model.Device):
     HEARTBEAT_PERIOD = 1*60*60*12 # 12 hours -> seconds
 
     # All valves' chance to stall.
-    Valve.PERCENT_CHANGE_TO_STALL = 5
+    PERCENT_CHANGE_TO_STALL = 5
+
+    # All valves' stall time before being back up and running.
+    # 2 minutes was chosen as the amount of time it would take for the person to go to the valve controller and fix the stall.
+    STALL_TIME = 120
 
     MotorState = Enum("MotorState", "opening closing resting")
     ValveStatus = Enum("ValveStatus", "opened closed stuck")
@@ -335,7 +339,13 @@ class Valve(model.Device):
             # Wait 5 seconds for motor to close.
             yield self._env.timeout(5)
 
-            self.close()
+            total_percent_chance_to_stall = 100
+            if random.randint(0, total_percent_chance_to_stall + 1) <= Valve.PERCENT_CHANGE_TO_STALL:
+                self.stall()
+                # Wait 2 minutes for a "person" to come fix the valve.
+                yield self._env.timeout(Valve.STALL_TIME)
+            else:
+                self.close()
 
             self.update_motor_action(Valve.MotorState.opening.name)
             logger.info("{valve} MOTOR IS OPENING!".format(valve=self._instance_name))
@@ -350,8 +360,6 @@ class Valve(model.Device):
 
         self.update_valve_status(new_status=Valve.ValveStatus.stuck.name)
         logger.warning("{valve} STALLED!".format(valve=self._instance_name))
-        # Wait 2 minutes for a "person" to come fix the valve.
-        # yield self._env.timeout(120)
 
     def open(self):
         """ Opens the valve.
@@ -363,12 +371,8 @@ class Valve(model.Device):
         logger.info("{valve} IS OPENED!".format(valve=self._instance_name))
 
     def close(self):
-        """ Closes the valve. Small chance to stall.
+        """ Closes the valve.
         """
 
-        total_percent_chance_to_stall = 100
-        if random.randint(0, total_percent_chance_to_stall + 1) <= Valve.PERCENT_CHANGE_TO_STALL:
-            self.stall()
-        else:
-            self.update_valve_status(new_status=Valve.ValveStatus.closed.name)
-            logger.info("{valve} CLOSED!".format(valve=self._instance_name))
+        self.update_valve_status(new_status=Valve.ValveStatus.closed.name)
+        logger.info("{valve} CLOSED!".format(valve=self._instance_name))
