@@ -21,6 +21,20 @@ import click
 import logging
 import config
 import ges
+import udp_client
+import json
+import configparser
+
+from enum import Enum
+
+
+##############
+## Commands ##
+##############
+
+LIST_ALL_DEVICES = {
+    "command": "list"
+}
 
 ###################
 ## Configuration ##
@@ -32,9 +46,26 @@ logging.basicConfig(
     format='[ges-cli,pid:%(process)d](%(levelname)s) %(message)s'
 )
 
+# Information types for output text.
+InfoType = Enum("InfoType", "CONFIGURATION INFO")
+
+# Configuration
+CONFIG_FILE = "configuration.ini"
+
+
 ##############################
 ## Main click command group ##
 ##############################
+
+def read_configuration():
+    config = configparser.ConfigParser()
+    config.read(CONFIG_FILE)
+
+    ip = config["UDP"]["ip"]
+    port = config["UDP"]["port"]
+    print("[{info_type}] Currently pointing to {ip}:{port}.".format(info_type=InfoType.CONFIGURATION.name,
+                                                                   ip=ip,
+                                                                   port=port))
 
 @click.group()
 @click.version_option(version=config.version, prog_name='ges')
@@ -45,9 +76,58 @@ def gescli():
     """
     pass
 
+def send_command(command):
+    # Ignoring errors for now until I figure out why this function errors out after successfully sending a command.
+    try:
+        config = configparser.ConfigParser()
+        config.read(CONFIG_FILE)
+
+        ip = config["UDP"]["ip"]
+        port = config["UDP"]["port"]
+
+        udp_client.UDP().send(command=json.dumps(command),
+                            ip=ip,
+                            port=port)
+
+        print("[{info_type}] Sent command".format(info_type=InfoType.info.name))
+    except:
+        pass
+
+
 ##################
 ## CLI commands ##
 ##################
+
+@click.command()
+@click.option("--ip", help="Daemon IP address.")
+@click.option("--port", help="Daemon port.")
+def update_address(ip, port):
+    """Updates the IP address and port GES CLI points to.
+    """
+    config = configparser.ConfigParser()
+    config.read(CONFIG_FILE)
+
+    if ip is not None:
+        config["UDP"]["IP"] = ip
+    if port is not None:
+        config["UDP"]["PORT"] = port
+
+    with open("configuration.ini", "w") as config_file:
+        config.write(config_file)
+
+    print("Updated IP address and port.")
+
+
+@click.command()
+def list_all_devices():
+    """Sends an arbitrary command.
+    
+    Args:
+        command (str): Command to be sent.
+    """
+
+    send_command(command=LIST_ALL_DEVICES)
+
 
 @click.command()
 def spawn():
@@ -58,8 +138,13 @@ def spawn():
 ###############################################
 ## Register commands with main command group ##
 ###############################################
-gescli.add_command(test)
+
+gescli.add_command(update_address)
+gescli.add_command(list_all_devices)
+gescli.add_command(spawn)
 
 # Run CLI
 if __name__ == '__main__':
+    read_configuration()
+
     gescli()
