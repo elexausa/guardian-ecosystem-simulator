@@ -17,9 +17,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-
 import click
 import logging
+import config
 import ges
 
 ###################
@@ -29,20 +29,37 @@ import ges
 # Logging
 logging.basicConfig(
     level=logging.INFO,
-    format='[gescli,pid:%(process)d](%(levelname)s) %(message)s'
+    format='[ges-cli,pid:%(process)d](%(levelname)s) %(message)s'
 )
 
+##############################
+## Main click command group ##
+##############################
+
 @click.group()
-@click.version_option(version='0.1', prog_name='ges')
+@click.version_option(version=config.version, prog_name='ges')
 def gescli():
+    """Primary click command group.
+
+    Sets up Click and houses all commands.
+    """
     pass
 
-@click.command()
-def test():
-    print('hi')
+##################
+## CLI commands ##
+##################
 
+@click.command()
+def spawn():
+    """Spawns device instances on the daemon.
+    """
+    print('hello, world!')
+
+###############################################
+## Register commands with main command group ##
+###############################################
 gescli.add_command(test)
 
-
+# Run CLI
 if __name__ == '__main__':
     gescli()
