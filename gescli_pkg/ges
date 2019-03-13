@@ -36,6 +36,20 @@ LIST_ALL_DEVICES = {
     "command": "list"
 }
 
+KILL = {
+    "command": "kill"
+}
+
+RUN = {
+    "command": "run"
+}
+
+SPAWN = {
+    "command": "spawn",
+    "type": None,
+    "count": 1
+}
+
 ###################
 ## Configuration ##
 ###################
@@ -129,7 +143,7 @@ def update_address(ip, port):
 
 @click.command()
 def list_all_devices():
-    """Sends an arbitrary command.
+    """Lists all devices.
     
     Args:
         command (str): Command to be sent.
@@ -137,12 +151,39 @@ def list_all_devices():
 
     send_command(command=LIST_ALL_DEVICES)
 
+@click.command()
+def kill():
+    """Kills the daemon.
+    """
+    
+    send_command(command=KILL)
 
 @click.command()
-def spawn():
-    """Spawns device instances on the daemon.
+def run():
+    """Runs the daemon.
     """
-    print('hello, world!')
+    send_command(command=RUN)
+
+
+@click.command()
+@click.option("--type", required=True, help="Type of device to spawn.")
+@click.option("--count", help="Number of devices to spawn.")
+def spawn(type, count):
+    """Spawns device instances on the daemon.
+    
+    Args:
+        type (str): Type of device to spawn.
+        count (int): Number of devices to spawn.
+    """
+
+    spawn = SPAWN
+    spawn["type"] = type
+    
+    if count is not None:
+        spawn["count"] = count
+
+    spawn["count"] = int(spawn["count"])
+    send_command(spawn)
 
 ###############################################
 ## Register commands with main command group ##
@@ -150,6 +191,8 @@ def spawn():
 
 gescli.add_command(update_address)
 gescli.add_command(list_all_devices)
+gescli.add_command(kill)
+gescli.add_command(run)
 gescli.add_command(spawn)
 
 # Run CLI
