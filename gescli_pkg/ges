@@ -58,6 +58,9 @@ CONFIG_FILE = "configuration.ini"
 ##############################
 
 def read_configuration():
+    """Reads the configuration file.
+    """
+
     config = configparser.ConfigParser()
     config.read(CONFIG_FILE)
 
@@ -77,6 +80,12 @@ def gescli():
     pass
 
 def send_command(command):
+    """Sends a command.
+    
+    Args:
+        command (dict): Command to be sent.
+    """
+
     # Ignoring errors for now until I figure out why this function errors out after successfully sending a command.
     try:
         config = configparser.ConfigParser()
@@ -86,10 +95,10 @@ def send_command(command):
         port = config["UDP"]["port"]
 
         udp_client.UDP().send(command=json.dumps(command),
-                            ip=ip,
-                            port=port)
+                              ip=ip,
+                              port=port)
 
-        print("[{info_type}] Sent command".format(info_type=InfoType.info.name))
+        print("[{info_type}] Sent command".format(info_type=InfoType.INFO.name))
     except:
         pass
 
