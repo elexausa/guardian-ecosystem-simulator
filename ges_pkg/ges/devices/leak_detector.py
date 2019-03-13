@@ -32,6 +32,17 @@ logger = logging.getLogger(__name__)
 
 
 class Leak_Detector(model.Device):
+    """ Simulates a leak detector
+    
+    Attributes:
+        LEAK_DETECT_TIMEFRAME_MIN (int): Minimum amount of time (in simulation seconds) before a leak is detected.
+        LEAK_DETECT_TIMEFRAME_MAX (int): Maximum amount of time (in simulation seconds) before a leak is detected.
+        INITIAL_TEMPERATURE (double): The initial reading of internal temperature (in fahrenheit).
+        TEMPERATURE_STANDARD_DEVIATION (int): How far the temperature can stray from attribute INITIAL_TEMPERATURE.
+        INITIAL_BATTERY_VOLTAGE (int): The initial battery voltage (in millivolts).
+        HEARTBEAT_PERIOD (int): Time (in simulation seconds) before a heartbeat packet is sent out.
+    """
+
     # Disable object `__dict__`
     __slots__ = ('_process', '_leak_detect_process')
 

@@ -32,6 +32,18 @@ logger = logging.getLogger(__name__)
 
 
 class Valve(model.Device):
+    """ Simulates a valve controller.
+    
+    Attributes:
+        LEAK_DETECT_TIMEFRAME_MIN (int): Minimum amount of time (in simulation seconds) before a leak is detected.
+        LEAK_DETECT_TIMEFRAME_MAX (int): Maximum amount of time (in simulation seconds) before a leak is detected.
+        HEARTBEAT_PERIOD (int): Time (in simulation seconds) before a heartbeat packet is sent out.
+        PRECENT_CHANCE_TO_STALL (int): The percent chance the valve controller will stall when closing.
+        STALL_TIME (int): Amount of time (in simulation seconds) the valve controller is down if it stalls.
+        MotorState (Enum): All applicable motor states.
+        ValveState (Enum): All applicable valve states.
+    """
+
     # Disable object `__dict__`
     __slots__ = ('_main_process', '_rf_recv_pipe', '_heartbeat_process', 'leak_detectors')
 
@@ -40,11 +52,8 @@ class Valve(model.Device):
 
     HEARTBEAT_PERIOD = 1*60*60*12 # 12 hours -> seconds
 
-    # All valves' chance to stall.
-    PERCENT_CHANGE_TO_STALL = 5
+    PERCENT_CHANCE_TO_STALL = 5
 
-    # All valves' stall time before being back up and running.
-    # 2 minutes was chosen as the amount of time it would take for the person to go to the valve controller and fix the stall.
     STALL_TIME = 120
 
     MotorState = Enum("MotorState", "opening closing resting")
@@ -207,8 +216,8 @@ class Valve(model.Device):
     def add_leak_detector(self, leak_detector):
         """ Pairs a leak detector.
         
-        Arguments:
-            leak_detector {Leak_Detector} -- The new leak detector to be paired.
+        Args:
+            leak_detector (Leak_Detector) -- The new leak detector to be paired.
         """
 
         self.leak_detectors.append(leak_detector)
@@ -241,8 +250,8 @@ class Valve(model.Device):
     def set_heartbeat(self, new_heartbeat):
         """ Sets all valve controllers' heartbeat period.
         
-        Arguments:
-            new_heartbeat {UINT16} -- New heartbeat period in seconds.
+        Args:
+            new_heartbeat (UINT16) -- New heartbeat period in seconds.
         """
         
         Valve.HEARTBEAT_PERIOD = new_heartbeat
@@ -251,8 +260,8 @@ class Valve(model.Device):
     def update_probe(self, is_wet):
         """ Updates the probe's status.
         
-        Arguments:
-            is_wet {boolean} --
+        Args:
+            is_wet (boolean) --
                 True if the probe is wet.
                 False if the probe is dry.
         
@@ -269,8 +278,8 @@ class Valve(model.Device):
     def update_motor_action(self, new_state):
         """ Updates the motor's action status.
         
-        Arguments:
-            new_state {Valve.MotorState} -- The new motor action status.
+        Args:
+            new_state (Valve.MotorState) -- The new motor action status.
         
         Raises:
             TypeError -- new_state is not a type of allowed motor state.
@@ -288,8 +297,8 @@ class Valve(model.Device):
     def update_valve_status(self, new_status):
         """ Updates the valve's status.
         
-        Arguments:
-            new_status {Valve.ValveStatus} -- The new valve status.
+        Args:
+            new_status (Valve.ValveStatus) -- The new valve status.
         
         Raises:
             TypeError -- new_status is not a type of allowed valve status.
@@ -322,7 +331,7 @@ class Valve(model.Device):
             yield self._env.timeout(5)
 
             total_percent_chance_to_stall = 100
-            if random.randint(0, total_percent_chance_to_stall + 1) <= Valve.PERCENT_CHANGE_TO_STALL:
+            if random.randint(0, total_percent_chance_to_stall + 1) <= Valve.PERCENT_CHANCE_TO_STALL:
                 self.stall()
                 # Wait 2 minutes for a "person" to come fix the valve.
                 yield self._env.timeout(Valve.STALL_TIME)
