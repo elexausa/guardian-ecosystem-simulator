@@ -29,7 +29,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-class Communicator(object):
+class Communicator:
     """Enables a process to perform many-to-many communication
     with other simulation processes.
 
@@ -37,57 +37,33 @@ class Communicator(object):
     in SimPy user manual 3.0.11.
     """
 
-    class Type(Enum):
-        """Enumeration defining different Communicator pipe types.
-        """
-        RF = 0
-        TCPIP = 1
-        BLUETOOTH_CLASSIC = 2
-        BLUETOOTH_LE = 3
-
+    __slots__ = ('_env', '_capacity', '_pipes')
 
     @dataclasses.dataclass
-    class RF_Packet:
-        # TODO: Move to separate 'Packet' class
-        mac_address: str = 'unknown'
-        battery: float = 0.0
-        temperature: float = 0.0
-        top: bool = False
-        bottom: bool = False
-        tilt: bool = False
+    class Packet:
+        """Typical communicator packet.
 
+        Requires created sent at (simulation time), datetime,
+        sender id, target id, and the data to send.
+        """
+        sent_at: int
+        created_at: str = str(datetime.datetime.now())
+        sent_by: str = 'unknown'
+        sent_to: str = 'unknown'
+        data: str = 'none'
 
-    def __init__(self, env=None, capacity=simpy.core.Infinity, type=Type.RF):
-        # Validate environment
-        if env is None:
-            # TODO: needs rework
-            raise RuntimeError("Invalid environment provided")
-        else:
-            self._env = env
+    def __init__(self, env: simpy.core.BaseEnvironment, capacity=simpy.core.Infinity):
+        # Set environment
+        self._env = env
 
         # Store pipe configuration
         self._capacity = capacity
-        self._type = type
 
         # Create list to store pipes
         self._pipes = []
 
-    @staticmethod
-    def create_tunnel(env=None, type=Type.RF):
-        """Tunnel factory.
-
-        Create tunnel of given type.
-
-        Arguments:
-            env (simpy.Environment): Associated simulation
-                environment.
-            type (Communicator.Type, optional): Defaults to
-                Type.RF. The desired tunnel to create.
-        """
-        return Communicator(env=env, type=type)
-
-    def send(self, packet):
-        """Send packet to all attached pipes.
+    def send_raw(self, packet: str):
+        """Send raw packet to all attached pipes.
 
         Args:
             packet (any): The data to send
