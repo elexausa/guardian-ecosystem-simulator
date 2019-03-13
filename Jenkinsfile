@@ -68,36 +68,6 @@ pipeline {
                 }
             }
         }
-        stage ('Deploy develop ges_pkg') {
-            when {
-                branch 'develop'
-            }
-            steps {
-                sh '''source activate ${BUILD_TAG}
-                      twine upload --repository-url $ELEXA_PYPI_REPO_URL -u $ELEXA_PYPI_REPO_USER -p $ELEXA_PYPI_REPO_PASS ges_pkg/dist/*
-                   '''
-            }
-            post {
-                success {
-                    slackSend (color: '#00FF00', message: "Deployed `ges_pkg` origin/develop build to pypi (${ELEXA_PYPI_REPO_URL})")
-                }
-            }
-        }
-        stage ('Deploy master ges_pkg') {
-            when {
-                branch 'master'
-            }
-            steps {
-                sh '''source activate ${BUILD_TAG}
-                      twine upload --repository-url $ELEXA_PYPI_REPO_URL -u $ELEXA_PYPI_REPO_USER -p $ELEXA_PYPI_REPO_PASS ges_pkg/dist/*
-                   '''
-            }
-            post {
-                success {
-                    slackSend (color: '#00FF00', message: "Deployed `ges_pkg` origin/master build to pypi (${ELEXA_PYPI_REPO_URL})")
-                }
-            }
-        }
     }
     post {
         always {
