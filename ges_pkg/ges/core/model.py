@@ -26,8 +26,9 @@ import json
 import simpy
 import logging
 
-from .util import generate
+from . import util
 from . import communication
+from . import communicators
 
 # Define logger
 logger = logging.getLogger(__name__)
@@ -81,7 +82,7 @@ class Device(object):
     def __init__(self, env=None, comm_tunnels=None, codename='unknown', instance_name=None):
         # Validate environment
         if env is None:
-            # TODO: needs rework
+            # TODO: needs rework - AB 03/12/2019
             raise RuntimeError("Invalid environment provided")
         else:
             self._env = env
@@ -263,7 +264,7 @@ class Device(object):
         to generate realistic serial numbers.
         """
         # Return a random string
-        return generate.string(size=Device.SERIAL_NUMBER_LENGTH)
+        return util.generate.string(size=Device.SERIAL_NUMBER_LENGTH)
 
     def generate_mac_addr(self):
         """
@@ -271,17 +272,16 @@ class Device(object):
         to generate realistic MAC addresses.
         """
         # Return a random string
-        return generate.string(size=Device.MAC_ADDRESS_LENGTH)
+        return util.generate.string(size=Device.MAC_ADDRESS_LENGTH)
 
-    def get_communicator_recv_pipe(self, type: communication.Communicator.Type):
+    def get_communicator_recv_pipe(self, type):
         """Returns a Communicator recieve pipe.
 
         Returns receive pipe of requested type, if it
         does not exist, raise exception.
 
         Arguments:
-            type (Communicator.Type): Type of recv pipe
-                to create.
+            type (Communicator subclass): Must be type of Communicator subclasses
 
         Raises:
             RuntimeError: pipe could not be created
@@ -290,16 +290,38 @@ class Device(object):
             simpy.Store: recv pipe of requested communicator
                 type
         """
+        # Verify type
+        if type not in [klass for klass in communication.Communicator.__subclasses__()]:
+            raise RuntimeError('Unexpected type received')
+
         for tunnel in self._comm_tunnels:
-            if tunnel._type == type:
+            # Check that tunnel is requested type
+            if isinstance(tunnel, type):
                 return tunnel.get_output_pipe()
 
         raise RuntimeError('Communicator type (%s) not available' % type)
 
-    def transmit(self, type: communication.Communicator.Type, packet: str):
+    def transmit(self, type, packet: communication.Communicator.Packet):
+        """Transmits provided packet to the communicator type given.
+
+        Args:
+            type (Communicator subclass): Must be type of Communicator subclasses
+            packet (communication.Communicator.Packet): Packet dataclass
+                to send.
+
+        Raises:
+            RuntimeError: If unexpected type received
+            RuntimeError: Communicator type not available to device
+        """
+        # Verify type
+        if type not in [klass for klass in communication.Communicator.__subclasses__()]:
+            raise RuntimeError('Unexpected type received')
+
         for tunnel in self._comm_tunnels:
-            # Check that is requested type
-            if tunnel._type == type:
+            # Check that tunnel is requested type
+            if isinstance(tunnel, type):
+                # Send
                 tunnel.send(packet)
+                return True
 
         raise RuntimeError('Communicator type (%s) not available' % type)
