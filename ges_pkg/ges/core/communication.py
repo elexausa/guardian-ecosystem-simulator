@@ -28,7 +28,6 @@ import logging
 # Define logger
 logger = logging.getLogger(__name__)
 
-
 class Communicator:
     """Enables a process to perform many-to-many communication
     with other simulation processes.
@@ -78,7 +77,6 @@ class Communicator:
         # Pipes populated?
         if not self._pipes:
             logger.debug('No output pipes configured, packet dropped')
-            raise RuntimeError('No output pipes configured')
 
         logger.debug("Sending packet to %d output pipes: %s" %
                     (len(self._pipes), packet))

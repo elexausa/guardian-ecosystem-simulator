@@ -25,8 +25,9 @@ import logging
 import json
 import argparse
 import simpy
-from curses import ascii
+import random
 
+from ges.core.util import response, const
 from ges.core import communication
 from ges.core import communicators
 from ges.devices import Valve, Leak_Detector
@@ -45,7 +46,7 @@ from ges.devices import Cow, Calf
 # Format: [gesd,time,process,thread](level)filename->function: message
 logging.basicConfig(
     level=logging.INFO,
-    format='[%(levelname)s,%(name)s,%(asctime)s,%(process)d,%(threadName)s](%(filename)s/%(funcName)s): %(message)s',
+    format='[%(levelname)s,%(asctime)s,%(process)d,%(threadName)s](%(filename)s/%(funcName)s): %(message)s',
     handlers=[
         logging.FileHandler(filename='test.log'),
         logging.StreamHandler()
@@ -165,23 +166,37 @@ def parse_packet(packet: bytearray, sender: tuple):
                 if 'count' in packet_json:
                     d_count = packet_json['count']
 
+                # Device type dependent
+                comm_tunnels = []
+                instance_name = None
+
                 # Determine klass
                 if d_type == 'valve':
                     klass = Valve
+                    comm_tunnels.append(rf_comm_tunnel)
                 elif d_type == 'leak_detector':
+                    comm_tunnels.append(rf_comm_tunnel)
                     klass = Leak_Detector
                 elif d_type == 'cow':
+                    comm_tunnels.append(rf_comm_tunnel)
+                    comm_tunnels.append(ip_comm_tunnel)
                     klass = Cow
                 elif d_type == 'calf':
+                    comm_tunnels.append(rf_comm_tunnel)
+                    comm_tunnels.append(ip_comm_tunnel)
                     klass = Calf
 
                 # Create list to collect metadata of spawned devices
                 metadata = {'devices': []}
 
                 for _ in range(d_count):
+                    # Get a name
+                    if d_type in ('cow', 'calf'):
+                        instance_name = random.choice(const.LADY_NAMES)
+
                     # Spawn device
                     # FIXME: this needs work to properly setup communication tunnels
-                    d = klass(env=env, comm_tunnels=[rf_comm_tunnel])
+                    d = klass(env=env, instance_name=instance_name, comm_tunnels=comm_tunnels)
 
                     # Store metadata
                     metadata['devices'].append(d.metadata)
@@ -192,7 +207,7 @@ def parse_packet(packet: bytearray, sender: tuple):
                 logging.info('%d total devices spawned' % len(devices))
 
                 # Return ACK
-                sock.sendto(bytearray(ascii.ACK), sender)
+                sock.sendto(response.ACK, sender)
 
             if command == 'list':
                 logging.info('dumping all devices')

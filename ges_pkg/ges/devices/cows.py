@@ -21,9 +21,12 @@ import random
 import simpy
 import logging
 import json
+import datetime
 
 from ..core import communication
+from ..core import communicators
 from ..core import model
+from ..core.util import const
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +47,7 @@ class Cow(model.Device):
            model.Device.Data(
                 name='heartbeat_period',
                 type=model.Device.Data.Type.UINT16,
-                value=300,
+                value=300, # 5 minutes
                 description='Device heartbeat period (in seconds)'
             )
         )
@@ -66,7 +69,13 @@ class Cow(model.Device):
                 # Now awake
                 isAwake = True
 
-                logger.info("%s says \"MooooOOO!\"", self._instance_name)
+                logger.info("*pokes cow*")
+
+                # 1-5 seconds to get the mind working
+                yield self._env.timeout(random.randint(1,20))
+
+                # Success
+                logger.info("%s woke up! \"MooooOOO!\" says the cow", self._instance_name)
             else:
                 # Wait for heartbeat to report info
                 yield self._env.timeout(self.get_setting('heartbeat_period').value)
@@ -94,7 +103,7 @@ class Calf(model.Device):
     __slots__ = ('_process')
 
     def __init__(self, env=None, comm_tunnels=None, instance_name=None):
-        super().__init__(env=env, comm_tunnels=comm_tunnels, codename='calf', instance_name=instance_name)
+        super().__init__(env=env, comm_tunnels=comm_tunnels, codename='moofussa', instance_name=instance_name)
 
         ###############################
         ## Configure device settings ##
@@ -127,10 +136,14 @@ class Calf(model.Device):
                 # Now awake
                 isAwake = True
 
-                logger.info("%s says \"mooooommy i'm hungry\"", self._instance_name)
+                # Wait for stable legs
+                yield self._env.timeout(random.randint(15,60))
+
+                logger.info("Little %s says \"mooooommy im hungry\"", self._instance_name)
             else:
                 # Wait for heartbeat to report info
-                yield self._env.timeout(self.get_setting('heartbeat_period').value)
+                # yield self._env.timeout(self.get_setting('heartbeat_period').value)
+                yield self._env.timeout(random.randint(1,500))
 
                 # Prep packet
                 packet = communication.Communicator.Packet(
@@ -138,8 +151,10 @@ class Calf(model.Device):
                     created_at=str(datetime.datetime.now()),
                     sent_by=self._metadata.mac_address,
                     sent_to='broadcast',
-                    data='mo'
+                    data='*slurps milk*'
                 )
+
+                logger.info("*slurp slurp* - %s", self._instance_name)
 
                 # Send
                 self.transmit(communicators.rf.RF, packet)
