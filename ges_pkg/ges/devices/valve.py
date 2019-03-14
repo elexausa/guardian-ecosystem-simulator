@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 
 class Valve(model.Device):
     """ Simulates a valve controller.
-    
+
     Attributes:
         LEAK_DETECT_TIMEFRAME_MIN (int): Minimum amount of time (in simulation seconds) before a leak is detected.
         LEAK_DETECT_TIMEFRAME_MAX (int): Maximum amount of time (in simulation seconds) before a leak is detected.
@@ -215,7 +215,7 @@ class Valve(model.Device):
 
     def add_leak_detector(self, leak_detector):
         """ Pairs a leak detector.
-        
+
         Args:
             leak_detector (Leak_Detector) -- The new leak detector to be paired.
         """
@@ -249,22 +249,22 @@ class Valve(model.Device):
 
     def set_heartbeat(self, new_heartbeat):
         """ Sets all valve controllers' heartbeat period.
-        
+
         Args:
             new_heartbeat (UINT16) -- New heartbeat period in seconds.
         """
-        
+
         Valve.HEARTBEAT_PERIOD = new_heartbeat
         logger.info("Set all valve controllers' heartbeat period to {new_value} seconds.".format(new_value=new_heartbeat))
 
     def update_probe(self, is_wet):
         """ Updates the probe's status.
-        
+
         Args:
             is_wet (boolean) --
                 True if the probe is wet.
                 False if the probe is dry.
-        
+
         Raises:
             TypeError -- is_wet is not a boolean.
         """
@@ -277,10 +277,10 @@ class Valve(model.Device):
 
     def update_motor_action(self, new_state):
         """ Updates the motor's action status.
-        
+
         Args:
             new_state (Valve.MotorState) -- The new motor action status.
-        
+
         Raises:
             TypeError -- new_state is not a type of allowed motor state.
         """
@@ -296,10 +296,10 @@ class Valve(model.Device):
 
     def update_valve_status(self, new_status):
         """ Updates the valve's status.
-        
+
         Args:
             new_status (Valve.ValveStatus) -- The new valve status.
-        
+
         Raises:
             TypeError -- new_status is not a type of allowed valve status.
         """
@@ -326,7 +326,7 @@ class Valve(model.Device):
             logger.warning(self._instance_name + ' LEAK DETECTED! CLOSING VALVE!')
 
             logger.info("{valve} MOTOR IS CLOSING!".format(valve=self._instance_name))
-            self.update_motor_action(new_state=Valve.MotorState.closing.name)        
+            self.update_motor_action(new_state=Valve.MotorState.closing.name)
             # Wait 5 seconds for motor to close.
             yield self._env.timeout(5)
 

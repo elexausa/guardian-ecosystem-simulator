@@ -47,7 +47,7 @@ class Cow(model.Device):
            model.Device.Data(
                 name='heartbeat_period',
                 type=model.Device.Data.Type.UINT16,
-                value=300, # 5 minutes
+                value=5, # 5 minutes
                 description='Device heartbeat period (in seconds)'
             )
         )
@@ -95,7 +95,7 @@ class Cow(model.Device):
                 )
 
                 # Send
-                self.transmit(communicators.rf.RF, packet)
+                self.transmit(communicators.ip_network.IP_Network, packet)
 
 
 class Calf(model.Device):

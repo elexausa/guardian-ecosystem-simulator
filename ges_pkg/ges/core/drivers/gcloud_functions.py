@@ -19,20 +19,24 @@
 
 import requests
 import json
+import logging
+
+# Define logger
+logger = logging.getLogger(__name__)
 
 # TODO: Remove from VCS
 ENDPOINT = "https://us-central1-guardian-ecoystem-simulator.cloudfunctions.net/{function_name}"
 
 def call_function(name: str, data: dict):
     try:
-        logging.info('Calling cloud function %s with data: %s' % (name, data))
+        logger.info('Calling cloud function %s with data: %s' % (name, data))
         r = requests.post(url=ENDPOINT.format(function_name=name), data=json.dumps(data))
     except Exception as e: # TODO: Handle specific exceptions
-        logging.warn('Could not call cloud function (error: %s)' % str(e))
+        logger.warn('Could not call cloud function (error: %s)' % str(e))
     else:
-        logging.warn('Cloud function called, result: %s' % str(r))
+        logger.warn('Cloud function called, result: %s' % str(r))
 
 def process(raw_msg: str):
     """Parse raw message and call relevant cloud function.
     """
-    pass
+    logger.info("received raw packet: %s" % raw_msg)
