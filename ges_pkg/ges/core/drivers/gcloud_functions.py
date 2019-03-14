@@ -34,9 +34,10 @@ def call_function(name: str, data: dict):
     except Exception as e: # TODO: Handle specific exceptions
         logger.warn('Could not call cloud function (error: %s)' % str(e))
     else:
-        logger.warn('Cloud function called, result: %s' % str(r))
+        logger.warn('Cloud function called, result: %s' % str(r.content))
 
 def process(raw_msg: str):
     """Parse raw message and call relevant cloud function.
     """
     logger.info("received raw packet: %s" % raw_msg)
+    call_function('test_function', {"message": "hello!"})
