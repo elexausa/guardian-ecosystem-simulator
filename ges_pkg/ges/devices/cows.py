@@ -22,6 +22,7 @@ import simpy
 import logging
 import json
 import datetime
+import dataclasses
 
 from ..core import communication
 from ..core import communicators
@@ -56,7 +57,7 @@ class Cow(model.Device):
         self._process = self._env.process(self.run())
 
     def run(self):
-        """Simulates dying cow mooing at 915 MHz.
+        """Simulates 'ol Bessy.
         """
 
         # On fresh call of `run()`, cow wakes up from a nice rest
@@ -72,10 +73,22 @@ class Cow(model.Device):
                 logger.info("*pokes cow*")
 
                 # 1-5 seconds to get the mind working
-                yield self._env.timeout(random.randint(1,20))
+                yield self._env.timeout(random.randint(1,4))
 
                 # Success
                 logger.info("%s woke up! \"MooooOOO!\" says the cow", self._instance_name)
+
+                # Prep packet
+                packet = communication.Communicator.Packet(
+                    sent_at=self._env.now,
+                    created_at=str(datetime.datetime.now()),
+                    sent_by=self._metadata.mac_address,
+                    sent_to=self._metadata.mac_address,
+                    data=self.dump_json()
+                )
+
+                # Send
+                self.transmit(communicators.ip_network.IP_Network, packet)
             else:
                 # Wait for heartbeat to report info
                 yield self._env.timeout(self.get_setting('heartbeat_period').value)

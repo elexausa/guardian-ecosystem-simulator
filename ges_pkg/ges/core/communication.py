@@ -38,6 +38,7 @@ class Communicator:
 
     __slots__ = ('_env', '_capacity', '_pipes')
 
+
     @dataclasses.dataclass
     class Packet:
         """Typical communicator packet.

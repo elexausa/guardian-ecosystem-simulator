@@ -74,20 +74,20 @@ class IP_Network(Communicator, multiprocessing.Process):
         # Immediately start self process
         self.start()
 
-    def send(self, msg: Communicator.Packet):
+    def send(self, packet: Communicator.Packet):
         """Preproccesses packet and performs relevant
         Cloud Function calls then forwards packet to
         super().send_raw().
 
         Args:
-            msg (Packet): Requires Packet dataclass
+            packet (Packet): Requires Packet dataclass
         """
         # Pass to gcloud functions for processing
         # FIXME: If this becomes a bottleneck, separate to standalone thread - AB 03/12/2019
-        gcloud_functions.process(msg)
+        gcloud_functions.process(packet)
 
         # Pass to super for sending to communicator pipes
-        self.send_raw(msg)
+        self.send_raw(packet)
 
     def handle_client_connection(self, client_socket):
         """Handles `client_socket`.
