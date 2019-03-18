@@ -30,7 +30,7 @@ ENDPOINT = "https://us-central1-guardian-ecoystem-simulator.cloudfunctions.net/{
 def call_function(name: str, data: dict):
     try:
         logger.info('Calling cloud function %s with data: %s' % (name, data))
-        r = requests.post(url=ENDPOINT.format(function_name=name), data=json.dumps(data))
+        r = requests.post(url=ENDPOINT.format(function_name=name), data=json.dumps(data), headers={'Content-type': 'application/json'})
     except Exception as e: # TODO: Handle specific exceptions
         logger.warn('Could not call cloud function (error: %s)' % str(e))
     else:
