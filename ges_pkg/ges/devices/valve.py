@@ -21,6 +21,7 @@ import random
 import simpy
 import logging
 import json
+import datetime
 from enum import Enum
 
 from ..core import communication
@@ -31,33 +32,59 @@ from ..core import communicators
 logger = logging.getLogger(__name__)
 
 
-class Valve(model.Device):
-    """ Simulates a valve controller.
+class ValveController(model.Device):
+    """Simulates a valve controller.
 
     Attributes:
-        LEAK_DETECT_TIMEFRAME_MIN (int): Minimum amount of time (in simulation seconds) before a leak is detected.
-        LEAK_DETECT_TIMEFRAME_MAX (int): Maximum amount of time (in simulation seconds) before a leak is detected.
-        HEARTBEAT_PERIOD (int): Time (in simulation seconds) before a heartbeat packet is sent out.
+        LEAK_DETECT_TIMEFRAME_MIN (int): Minimum amount of time (in simulation intervals) before a leak is detected.
+        LEAK_DETECT_TIMEFRAME_MAX (int): Maximum amount of time (in simulation intervals) before a leak is detected.
+        HEARTBEAT_PERIOD (int): Time (in simulation intervals) before a heartbeat packet is sent out.
         PRECENT_CHANCE_TO_STALL (int): The percent chance the valve controller will stall when closing.
-        STALL_TIME (int): Amount of time (in simulation seconds) the valve controller is down if it stalls.
+        STALL_TIME (int): Amount of time (in simulation intervals) the valve controller is down if it stalls.
         MotorState (Enum): All applicable motor states.
         ValveState (Enum): All applicable valve states.
     """
 
+
+    class MotorState(str, Enum):
+        """Defines possible motor states.
+        """
+        OPENING = 'OPENING'
+        CLOSING = 'CLOSING'
+        RESTING = 'RESTING'
+
+    class ValveState(str, Enum):
+        """Defines possible motor states.
+        """
+        OPENED = 'OPENED'
+        CLOSED = 'CLOSED'
+        STUCK = 'STUCK'
+ 
     # Disable object `__dict__`
-    __slots__ = ('_main_process', '_rf_recv_pipe', '_heartbeat_process', 'leak_detectors')
+    __slots__ = ('_main_process', '_heartbeat_process', '_leak_process', '_rf_recv_pipe', 'leak_detectors')
 
-    LEAK_DETECT_TIMEFRAME_MIN = 1
-    LEAK_DETECT_TIMEFRAME_MAX = 1*60*60*24*30 # 30 days
+    #########################
+    ## Set class variables ##
+    #########################
 
+    # Startup
+    STARTUP_TIME_MEAN = 5 # seconds
+    STARTUP_TIME_STDDEV = 2 # seconds
+
+    # Heartbeat
     HEARTBEAT_PERIOD = 1*60*60*12 # 12 hours -> seconds
 
-    PERCENT_CHANCE_TO_STALL = 5
+    # Internal detection
+    LEAK_DETECTION_TIME_MEAN = 1*60*60 # 1 hour
+    LEAK_DETECTION_TIME_STDDEV = 1*60*15 # 15 minutes
 
-    STALL_TIME = 120
+    # Motor open/close
+    MOTOR_RUN_TIME_MEAN = 5 # seconds
+    MOTOR_RUN_TIME_STDDEV = 1 # seconds
 
-    MotorState = Enum("MotorState", "opening closing resting")
-    ValveStatus = Enum("ValveStatus", "opened closed stuck")
+    # Stall
+    CHANCE_TO_STALL = 5 # percent (1 - 100)
+    STALL_TIME = 120 # Seconds
 
     def __init__(self, env=None, comm_tunnels=None, instance_name=None):
         super().__init__(env=env, comm_tunnels=comm_tunnels, codename='tiddymun', instance_name=instance_name)
@@ -74,7 +101,7 @@ class Valve(model.Device):
            model.Device.Data(
                 name='heartbeat_period',
                 type=model.Device.Data.Type.UINT16,
-                value=Valve.HEARTBEAT_PERIOD,
+                value=ValveController.HEARTBEAT_PERIOD,
                 description='Device heartbeat period (in seconds)'
             )
         )
@@ -118,8 +145,8 @@ class Valve(model.Device):
            model.Device.Data(
                 name='valve',
                 type=model.Device.Data.Type.STRING,
-                value='opened',
-                description='State of valve as opened/closed/stuck'
+                value=ValveController.ValveState.OPENED,
+                description='State of valve as OPENED/CLOSED/STUCK'
             )
         )
 
@@ -128,7 +155,7 @@ class Valve(model.Device):
            model.Device.Data(
                 name='motor',
                 type=model.Device.Data.Type.STRING,
-                value='resting',
+                value=ValveController.MotorState.RESTING,
                 description='State of motor as opening/closing/resting'
             )
         )
@@ -167,203 +194,169 @@ class Valve(model.Device):
         self.leak_detectors = []
 
         # Spawn simulation processes
-        self._main_process = self._env.process(self.run())
-        self._env.process(self.detect_leak())
-        self._heartbeat_process = self.send_hearbeat()
+        self._main_process = self._env.process(self.main_process())
+        self._leak_process = self._env.process(self.leak_process())
+        self._heartbeat_process = self._env.process(self.heartbeat_process())
 
     def generate_mac_addr(self):
+        """Overrides super generator to force custom format.
+        """
         return "30AEA402" + generate.string(size=4)
 
-    def run(self):
+    ######################
+    ## Device processes ##
+    ######################
+
+    def main_process(self):
         """Simulates device transient operation.
 
         During normal operation the device can be interrupted
         by other simulation events.
         """
 
+        # On fresh call of `run()`, device must be turned on
+        isPowered = False
+
+        # Enter infinite loop for simulation
         while True:
-            # Get event for message pipe
-            packet = yield self._rf_recv_pipe.get()
+            # Starting from unpowered
+            if not isPowered:
+                # Set to powered
+                isPowered = True
 
-            if packet.sent_at < self._env.now:
-                # if message was already put into pipe, then
-                # message_consumer was late getting to it. Depending on what
-                # is being modeled this, may, or may not have some
-                # significance
-                logger.info('%s - received packet LATE - current time %d' % (self._instance_name, self._env.now))
-                # logger.info(json.dumps(json.loads(packet[1])))
+                logger.info('%s: PLUGGED IN', self._instance_name)
+
+                # Wait for startup
+                yield self._env.timeout(random.normalvariate(ValveController.STARTUP_TIME_MEAN, ValveController.STARTUP_TIME_STDDEV))
+
+                # Success
+                logger.info('%s: RUNNING', self._instance_name)
+
+                # Prep packet
+                packet = communication.Communicator.OperationPacket(
+                    # Packet()
+                    sender=self._instance_name,
+                    simulation_time=self._env.now,
+                    realworld_time=str(datetime.datetime.now()),
+
+                    # OperationPacket()
+                    type=communication.Communicator.OperationPacket.Type.CREATE_MACHINE,
+                    data=self.dump_json()
+                )
+
+                # Send
+                self.transmit(communicators.ip_network.IP_Network, packet)
             else:
-                # message_consumer is synchronized with message_generator
-                logger.info('%s - received packet ON TIME - current time %d - data (after NL)\n%s' % (self._instance_name, self._env.now, packet.data))
+                # Normal operation
+                yield self._env.timeout(random.randint(60, 300))
+                logger.info('%s: beep', self._instance_name)
+    
+    def heartbeat_process(self):
+        """Sends a heartbeat to show the valve controller is still online
+        and update cloud information.
+        """
+        while True:
+            yield self._env.timeout(self.get_setting('heartbeat_period').value)
 
-            # Check if the sender is paired to the valve controller.
-            if "sent_by" in packet.data:
-                sent_by = packet.data["sent_by"]
-                for ld in self.leak_detectors:
-                    if ld._instance_name == sent_by:
-                        # Check for event.
-                        if "event" in packet.data:
-                            event = packet.data["event"]
-                            if event == "leak_detected":
-                                logger.info("{valve} RECEIVED LEAK FROM {leak_detector}".format(valve=self._instance_name,
-                                                                                                leak_detector=sent_by))
-                        break
+            # Prep packet
+            packet = communication.Communicator.EventPacket(
+                # Packet()
+                sender=self._instance_name,
+                simulation_time=self._env.now,
+                realworld_time=str(datetime.datetime.now()),
 
-            continue
-            # Turn off the valve, 5-10 seconds
-            yield self._env.timeout(random.randint(5, 10))
+                # OperationPacket()
+                type=communication.Communicator.EventPacket.Type.HEARTBEAT,
+                data=json.dumps({
+                    "timestamp": str(datetime.datetime.now())  
+                })
+            )
 
-    def add_leak_detector(self, leak_detector):
-        """ Pairs a leak detector.
+            # Send
+            self.transmit(communicators.ip_network.IP_Network, packet)
 
-        Args:
-            leak_detector (Leak_Detector) -- The new leak detector to be paired.
+    def leak_process(self):
+        """Occasionally detects a leak.
+        """
+        while True:
+            # Yield for define mean leak detection time +- the provided stddev
+            yield self._env.timeout(random.normalvariate(ValveController.LEAK_DETECTION_TIME_MEAN, ValveController.LEAK_DETECTION_TIME_STDDEV))
+
+            # Acknowledge leak
+            self.acknowledge_leak(self._env.now)
+
+            # Start valve close process
+            self._env.process(self.close())
+
+    ####################
+    ## Device actions ##
+    ####################
+
+    def open(self):
+        # TODO
+        pass
+
+    def close(self):
+        """Closes valve.
+
+        Must be called via simpy process (simpy.Environment.process()).
         """
 
-        self.leak_detectors.append(leak_detector)
+        logger.info(self._instance_name + ': CLOSING VALVE')
 
-    def list_leak_detectors(self):
-        """ Lists all leak detectors paired to a valve controller.
-        """
+        # Grab required info
+        motor_state = self.get_state('motor')
+        # motor_amperage_state = self.get_state('motor_current')
+        valve_state = self.get_state('valve')
 
-        logger.log("Leak detectors paired to {valve}:".format(valve=self._instance_name))
-        for ld in self.leak_detectors:
-            logger.log("\t{leak_detector}".format(leak_detector=ld._instance_name))
+        # Ensure valve starting as opened
+        if valve_state.value in [ValveController.ValveState.OPENED, ValveController.ValveState.STUCK]:
+            logging.warning(self._instance_name + ': VALVE ALREADY CLOSED, ABORTING')
+            return
 
-    def send_hearbeat(self):
-        """ Sends a heartbeat to show the valve controller is still online.
-        """
+        # Ensure motor starting from resting
+        if motor_state.value != ValveController.MotorState.RESTING:
+            logging.warning(self._instance_name + ': MOTOR BUSY, ABORTING')
+            return
+        
+        # Set to closing
+        motor_state.value = ValveController.MotorState.CLOSING
+        
+        # Allow time to close (MOTOR_RUN_TIME_MEAN +- MOTOR_RUN_TIME_STDDEV)
+        yield self._env.timeout(random.normalvariate(ValveController.MOTOR_RUN_TIME_MEAN, ValveController.MOTOR_RUN_TIME_STDDEV))
 
-        yield self._env.timeout(Valve.HEARTBEAT_PERIOD)
+        # Occasionally force stall condition
+        if random.randint(0, 100) <= ValveController.CHANCE_TO_STALL:
+            # Valve is stuck
+            valve_state.value = ValveController.ValveState.STUCK
+            logging.info(self._instance_name + ': VALVE STALLED')
+            return
 
-        packet = communication.Communicator.Packet(
-            sent_at=self._env.now,
-            created_at=str(datetime.datetime.now()),
-            sent_by=self._metadata.mac_address,
-            sent_to=self._metadata.mac_address,
-            data='ping'
+        # Stop motor
+        motor_state.value = ValveController.MotorState.RESTING
+
+        # Done
+        logging.info(self._instance_name + ': VALVE CLOSED')
+        
+    def acknowledge_leak(self, time: int):
+        logger.info(self._instance_name + ': LEAK DETECTED')
+
+        # Set probe to wet
+        self.get_state('probe1_wet').value = True
+ 
+        # Prep packet
+        packet = communication.Communicator.EventPacket(
+            # Packet()
+            sender=self._instance_name,
+            simulation_time=self._env.now,
+            realworld_time=str(datetime.datetime.now()),
+
+            # OperationPacket()
+            type=communication.Communicator.EventPacket.Type.LEAK_DETECTED,
+            data=json.dumps({
+                'cause': 'internal_probe'
+            })
         )
 
         # Send
-        self.transmit(communicators.rf.RF, packet)
-
-    def set_heartbeat(self, new_heartbeat):
-        """ Sets all valve controllers' heartbeat period.
-
-        Args:
-            new_heartbeat (UINT16) -- New heartbeat period in seconds.
-        """
-
-        Valve.HEARTBEAT_PERIOD = new_heartbeat
-        logger.info("Set all valve controllers' heartbeat period to {new_value} seconds.".format(new_value=new_heartbeat))
-
-    def update_probe(self, is_wet):
-        """ Updates the probe's status.
-
-        Args:
-            is_wet (boolean) --
-                True if the probe is wet.
-                False if the probe is dry.
-
-        Raises:
-            TypeError -- is_wet is not a boolean.
-        """
-
-        if is_wet in [True, False]:
-            value = self.get_state('probe1_wet')
-            value = is_wet
-        else:
-            raise TypeError("A valve's probe status must either be True or False, not {received_value}".format(received_value=is_wet))
-
-    def update_motor_action(self, new_state):
-        """ Updates the motor's action status.
-
-        Args:
-            new_state (Valve.MotorState) -- The new motor action status.
-
-        Raises:
-            TypeError -- new_state is not a type of allowed motor state.
-        """
-
-        if new_state.lower() in [Valve.MotorState.opening.name, Valve.MotorState.closing.name, Valve.MotorState.resting.name]:
-            value = self.get_state('motor').value
-            value = new_state
-        else:
-            raise TypeError("Motor state must be {opening}, {closing}, {resting}, not {received_value}.".format(opening=Valve.MotorState.opening.name,
-                                                                                                                closing=Valve.MotorState.closing.name,
-                                                                                                                resting=Valve.MotorState.resting.name,
-                                                                                                                received_value=new_state))
-
-    def update_valve_status(self, new_status):
-        """ Updates the valve's status.
-
-        Args:
-            new_status (Valve.ValveStatus) -- The new valve status.
-
-        Raises:
-            TypeError -- new_status is not a type of allowed valve status.
-        """
-
-        if new_status.lower() in [Valve.ValveStatus.opened.name, Valve.ValveStatus.closed.name, Valve.ValveStatus.stuck.name]:
-            value = self.get_state('valve').value
-            value = new_status
-        else:
-            raise TypeError("Valve status must be {opened}, {closed}, {stuck}, not {received_value}.".format(opened=Valve.ValveStatus.opened.name,
-                                                                                                            closed=Valve.ValveStatus.closed.name,
-                                                                                                            stuck=Valve.ValveStatus.stuck.name,
-                                                                                                            received_value=new_status))
-
-    def detect_leak(self):
-        """ Occasionally triggers a leak.
-        """
-
-        while True:
-            # yield self._env.timeout(random.expovariate(self.MEAN_LEAK_DETECTION_TIME))
-            yield self._env.timeout(random.randint(1, 60))
-
-            self.update_probe(is_wet=True)
-
-            logger.warning(self._instance_name + ' LEAK DETECTED! CLOSING VALVE!')
-
-            logger.info("{valve} MOTOR IS CLOSING!".format(valve=self._instance_name))
-            self.update_motor_action(new_state=Valve.MotorState.closing.name)
-            # Wait 5 seconds for motor to close.
-            yield self._env.timeout(5)
-
-            total_percent_chance_to_stall = 100
-            if random.randint(0, total_percent_chance_to_stall + 1) <= Valve.PERCENT_CHANCE_TO_STALL:
-                self.stall()
-                # Wait 2 minutes for a "person" to come fix the valve.
-                yield self._env.timeout(Valve.STALL_TIME)
-            else:
-                self.close()
-
-            self.update_motor_action(Valve.MotorState.opening.name)
-            logger.info("{valve} MOTOR IS OPENING!".format(valve=self._instance_name))
-            # Wait 5 seconds for motor to open.
-            yield self._env.timeout(5)
-
-            self.open()
-
-    def stall(self):
-        """ Stalls the valve controller.
-        """
-
-        self.update_valve_status(new_status=Valve.ValveStatus.stuck.name)
-        logger.warning("{valve} STALLED!".format(valve=self._instance_name))
-
-    def open(self):
-        """ Opens the valve.
-        """
-
-        self.update_probe(is_wet=False)
-
-        self.update_valve_status(Valve.ValveStatus.opened.name)
-        logger.info("{valve} IS OPENED!".format(valve=self._instance_name))
-
-    def close(self):
-        """ Closes the valve.
-        """
-
-        self.update_valve_status(new_status=Valve.ValveStatus.closed.name)
-        logger.info("{valve} CLOSED!".format(valve=self._instance_name))
+        self.transmit(communicators.ip_network.IP_Network, packet)

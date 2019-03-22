@@ -83,7 +83,6 @@ class IP_Network(Communicator, multiprocessing.Process):
             packet (Packet): Requires Packet dataclass
         """
         # Pass to gcloud functions for processing
-        # FIXME: If this becomes a bottleneck, separate to standalone thread - AB 03/12/2019
         gcloud_functions.process(packet)
 
         # Pass to super for sending to communicator pipes

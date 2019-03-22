@@ -32,10 +32,10 @@ logger = logging.getLogger(__name__)
 ENDPOINT = "https://us-central1-guardian-ecoystem-simulator.cloudfunctions.net/{function_name}"
 
 
-class Functions(Enum):
-    hello_cloud = 'hello_cloud' # Simple "ping/pong", returns ACK
-    sync_device = 'sync_device' # Syncs device to firebase, requires serialized device
-
+class Cloud_Functions(str, Enum):
+    HELLO_CLOUD = 'hello_cloud' # Simple "ping/pong", returns ACK
+    SYNC_DEVICE = 'sync_device' # Syncs device to firebase, requires serialized device
+    CREATE_MACHINE = 'machine_create_machine' # Creates new machine in firebase
 
 def call_function(name: str, data: dict):
     try:
@@ -51,5 +51,27 @@ def process(packet: Communicator.Packet):
     """
     logger.debug("Processing packet")
 
+    # Default values
+    function_name = 'hello_cloud'
+    payload = {}
+
+    # Handle operation packet
+    if isinstance(packet, Communicator.OperationPacket):
+        # What type of operation
+        if packet.type is Communicator.OperationPacket.Type.CREATE_MACHINE:
+            # Verify at least metadata included
+            if not all(key in packet.data for key in ['metadata']):
+                raise ValueError("Missing parameters")
+
+            # Set function
+            function_name = Cloud_Functions.CREATE_MACHINE
+
+            # Set payload
+            payload = packet.data
+
+        # TODO: Handle all operations
+
+    # TODO: Handle event packet
+
     # Call the function in separate thread
-    threading.Thread(target=call_function, args=('sync_device', packet.data,)).start()
+    threading.Thread(target=call_function, args=(function_name, payload,)).start()

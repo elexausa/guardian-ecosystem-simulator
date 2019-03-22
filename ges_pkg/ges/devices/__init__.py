@@ -1,4 +1,4 @@
-from .valve import Valve
+from .valve import ValveController
 from .leak_detector import Leak_Detector
 
 # Test cows

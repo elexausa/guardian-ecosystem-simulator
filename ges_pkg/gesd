@@ -30,7 +30,7 @@ import random
 from ges.core.util import response, const
 from ges.core import communication
 from ges.core import communicators
-from ges.devices import Valve, Leak_Detector
+from ges.devices import ValveController, Leak_Detector
 
 # For testing
 from ges.devices import Cow, Calf
@@ -172,8 +172,9 @@ def parse_packet(packet: bytearray, sender: tuple):
 
                 # Determine klass
                 if d_type == 'valve':
-                    klass = Valve
+                    klass = ValveController
                     comm_tunnels.append(rf_comm_tunnel)
+                    comm_tunnels.append(ip_comm_tunnel)
                 elif d_type == 'leak_detector':
                     comm_tunnels.append(rf_comm_tunnel)
                     klass = Leak_Detector
