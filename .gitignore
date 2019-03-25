@@ -7,3 +7,4 @@ build/
 *.pyc
 __pycache__/
 ges_pkg/test.log
+ges_pkg/ges/core/drivers/guardian-ecoystem-simulator-firebase-adminsdk-mvi9h-3567079a17.json
