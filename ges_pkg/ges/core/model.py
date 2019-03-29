@@ -256,7 +256,8 @@ class Device(object):
             'state': [dataclasses.asdict(state) for state in self._states]
         }
 
-        return json.dumps(output, indent=4, sort_keys=True)
+        return output
+        #return json.dumps(output, indent=4, sort_keys=True)
 
     def generate_serial(self):
         """

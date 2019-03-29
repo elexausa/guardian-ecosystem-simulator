@@ -17,7 +17,8 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from enum import Enum
+from enum import IntEnum
+import typing
 import dataclasses
 import datetime
 import string
@@ -27,7 +28,6 @@ import logging
 
 # Define logger
 logger = logging.getLogger(__name__)
-
 
 class Communicator:
     """Enables a process to perform many-to-many communication
@@ -39,18 +39,37 @@ class Communicator:
 
     __slots__ = ('_env', '_capacity', '_pipes')
 
+
     @dataclasses.dataclass
     class Packet:
-        """Typical communicator packet.
+        """Generic communicator packet.
 
-        Requires created sent at (simulation time), datetime,
-        sender id, target id, and the data to send.
+        Requires sender, simulation time, realworld
+        time, and the data to send.
         """
-        sent_at: int
-        created_at: str = str(datetime.datetime.now())
-        sent_by: str = 'unknown'
-        sent_to: str = 'unknown'
-        data: str = 'none'
+        sender: str
+        simulation_time: int
+        realworld_time: str = str(datetime.datetime.now())
+
+    @dataclasses.dataclass
+    class OperationPacket(Packet):
+        class Type(IntEnum):
+            UNKNOWN = 0
+            CREATE_MACHINE = 1
+            DELETE_MACHINE = 2
+
+        type: Type = Type.UNKNOWN
+        data: dict = typing.Dict
+
+    @dataclasses.dataclass
+    class EventPacket(Packet):
+        class Type(IntEnum):
+            UNKNOWN = 0
+            LEAK_DETECTED = 1
+            LEAK_CLEARED = 2
+
+        type: Type = Type.UNKNOWN
+        data: dict = typing.Dict
 
     def __init__(self, env: simpy.core.BaseEnvironment, capacity=simpy.core.Infinity):
         # Set environment
@@ -78,7 +97,6 @@ class Communicator:
         # Pipes populated?
         if not self._pipes:
             logger.debug('No output pipes configured, packet dropped')
-            raise RuntimeError('No output pipes configured')
 
         logger.debug("Sending packet to %d output pipes: %s" %
                     (len(self._pipes), packet))
