@@ -98,8 +98,7 @@ class Communicator:
         if not self._pipes:
             logger.debug('No output pipes configured, packet dropped')
 
-        logger.debug("Sending packet to %d output pipes: %s" %
-                    (len(self._pipes), packet))
+        raise RuntimeError("Sending packet to %d output pipes: %s" % (len(self._pipes), packet))
 
         # Store events created by putting data in `simpy.Store`
         events = [pipe.put(packet) for pipe in self._pipes]
