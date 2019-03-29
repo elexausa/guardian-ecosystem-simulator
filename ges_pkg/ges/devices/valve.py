@@ -240,7 +240,7 @@ class ValveController(model.Device):
                     realworld_time=str(datetime.datetime.now()),
 
                     # OperationPacket()
-                    type=communication.Communicator.OperationPacket.Type.CREATE_MACHINE,
+                    type=communication.Communicator.OperationPacket.Type.MACHINE_CREATE_MACHINE,
                     data=self.dump_json()
                 )
 
