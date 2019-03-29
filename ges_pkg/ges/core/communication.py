@@ -123,9 +123,9 @@ class Communicator:
         """
         # Pipes populated?
         if not self._pipes:
-            logger.debug('No output pipes configured, packet dropped')
+            raise RuntimeError('No output pipes configured, packet dropped')
 
-        raise RuntimeError("Sending packet to %d output pipes: %s" % (len(self._pipes), packet))
+        logger.debug("Sending packet to %d output pipes: %s" % (len(self._pipes), packet))
 
         # Store events created by putting data in `simpy.Store`
         events = [pipe.put(packet) for pipe in self._pipes]
