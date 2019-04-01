@@ -55,8 +55,35 @@ class Communicator:
     class OperationPacket(Packet):
         class Type(IntEnum):
             UNKNOWN = 0
-            CREATE_MACHINE = 1
-            DELETE_MACHINE = 2
+            # CREATE_MACHINE = 1
+            # DELETE_MACHINE = 2
+            FAMILY_ADD_CHILDREN = 1
+            FAMILY_ADD_GROUP = 2
+            FAMILY_ADD_PERMISSIONS = 3
+            FAMILY_ADD_USER = 4
+            FAMILY_CREATE_FAMILY = 5
+            FAMILY_DELETE_GROUP = 6
+            FAMILY_DELETE_PERMISSIONS = 7
+            FAMILY_DELETE_USER = 8
+            FAMILY_KILL_CHILDREN = 9
+            FAMILY_SET_PARENT = 10
+
+            INACTIVE_SET_INACTIVE = 11
+
+            MACHINE_CREATE_MACHINE = 12
+            MACHINE_DELETE_MACHINE = 13
+            MACHINE_REGISTER_SETTING = 14
+            MACHINE_REGISTER_STATE = 15
+            MACHINE_UPDATE_SETTING = 16
+            MACHINE_UPDATE_STATE = 17
+
+            USER_ADD_FAMILIES = 18
+            USER_CREATE_USER = 19
+            USER_DELETE_FAMILIES = 20
+            USER_DELETE_USER = 21
+            USER_SET_EMAIL = 22
+            USER_SET_FNAME = 23
+            USER_SET_LNAME = 24
 
         type: Type = Type.UNKNOWN
         data: dict = typing.Dict
@@ -96,10 +123,9 @@ class Communicator:
         """
         # Pipes populated?
         if not self._pipes:
-            logger.debug('No output pipes configured, packet dropped')
+            raise RuntimeError('No output pipes configured, packet dropped')
 
-        logger.debug("Sending packet to %d output pipes: %s" %
-                    (len(self._pipes), packet))
+        logger.debug("Sending packet to %d output pipes: %s" % (len(self._pipes), packet))
 
         # Store events created by putting data in `simpy.Store`
         events = [pipe.put(packet) for pipe in self._pipes]

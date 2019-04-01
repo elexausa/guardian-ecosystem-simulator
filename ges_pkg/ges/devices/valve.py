@@ -22,6 +22,7 @@ import simpy
 import logging
 import json
 import datetime
+import dataclasses
 from enum import Enum
 
 from ..core import communication
@@ -61,7 +62,7 @@ class ValveController(model.Device):
         STUCK = 'STUCK'
  
     # Disable object `__dict__`
-    __slots__ = ('_main_process', '_heartbeat_process', '_leak_process', '_rf_recv_pipe', 'leak_detectors')
+    __slots__ = ('_main_process', '_heartbeat_process', '_leak_process', '_rf_recv_pipe', 'leak_detectors', '_ip_recv_pipe')
 
     #########################
     ## Set class variables ##
@@ -91,6 +92,7 @@ class ValveController(model.Device):
 
         # Grab rf comm pipe
         self._rf_recv_pipe = self.get_communicator_recv_pipe(type=communicators.rf.RF)
+        self._ip_recv_pipe = self.get_communicator_recv_pipe(type=communicators.IP_Network)
 
         ###############################
         ## Configure device settings ##
@@ -240,8 +242,12 @@ class ValveController(model.Device):
                     realworld_time=str(datetime.datetime.now()),
 
                     # OperationPacket()
-                    type=communication.Communicator.OperationPacket.Type.CREATE_MACHINE,
-                    data=self.dump_json()
+                    type=communication.Communicator.OperationPacket.Type.MACHINE_CREATE_MACHINE,
+                    # data=self.dump_json()
+
+                    data = {
+                        "metadata": dataclasses.asdict(self._metadata)
+                    }
                 )
 
                 # Send
