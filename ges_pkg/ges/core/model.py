@@ -253,7 +253,7 @@ class Device(object):
         output = {
             'metadata': dataclasses.asdict(self._metadata),
             'settings': [dataclasses.asdict(setting) for setting in self._settings],
-            'state': [dataclasses.asdict(state) for state in self._states]
+            'states': [dataclasses.asdict(state) for state in self._states]
         }
 
         return output
