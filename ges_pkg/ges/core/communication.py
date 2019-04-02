@@ -91,8 +91,9 @@ class Communicator:
     class EventPacket(Packet):
         class Type(IntEnum):
             UNKNOWN = 0
-            LEAK_DETECTED = 1
-            LEAK_CLEARED = 2
+            HEARTBEAT = 1
+            LEAK_DETECTED = 2
+            LEAK_CLEARED = 3
 
         type: Type = Type.UNKNOWN
         data: dict = typing.Dict
