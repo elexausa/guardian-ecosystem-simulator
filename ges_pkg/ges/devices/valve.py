@@ -242,12 +242,10 @@ class ValveController(model.Device):
                     realworld_time=str(datetime.datetime.now()),
 
                     # OperationPacket()
-                    type=communication.Communicator.OperationPacket.Type.MACHINE_CREATE_MACHINE,
+                    type=communication.Communicator.OperationPacket.Type.MACHINE_CREATE,
                     # data=self.dump_json()
 
-                    data = {
-                        "metadata": dataclasses.asdict(self._metadata)
-                    }
+                    data = self.dump_json()
                 )
 
                 # Send

@@ -33,37 +33,32 @@ ENDPOINT = "https://us-central1-guardian-ecoystem-simulator.cloudfunctions.net/{
 
 
 class Cloud_Functions(str, Enum):
-    # HELLO_CLOUD = 'hello_cloud' # Simple "ping/pong", returns ACK
-    # SYNC_DEVICE = 'sync_device' # Syncs device to firebase, requires serialized device
-    # CREATE_MACHINE = 'machine_create_machine' # Creates new machine in firebase
-
     FAMILY_ADD_CHILDREN = 'family_add_children'
-    FAMILY_ADD_GROUP = 'family_add_group'
+    FAMILY_ADD_GROUPS = 'family_add_groups'
     FAMILY_ADD_PERMISSIONS = 'family_add_permissions'
     FAMILY_ADD_USER = 'family_add_user'
-    FAMILY_CREATE_FAMILY = 'family_create_user'
-    FAMILY_DELETE_GROUP = 'family_delete_group'
+    FAMILY_CREATE = 'family_create'
+    FAMILY_DELETE = 'family_delete'
     FAMILY_DELETE_PERMISSIONS = 'family_delete_permissions'
-    FAMILY_DELETE_USER = 'family_delete_user'
-    FAMILY_KILL_CHILDREN = 'family_kill_children'
+    FAMILY_REMOVE_GROUP = 'family_remove_group'
+    FAMILY_REMOVE_CHILD = 'family_remove_child'
+    FAMILY_REMOVE_USER = 'family_remove_user'
     FAMILY_SET_PARENT = 'family_set_parent'
     
     INACTIVE_SET_INACTIVE = 'inactive_set_inactive'
 
-    MACHINE_CREATE_MACHINE = 'machine_create_machine'
-    MACHINE_DELETE_MACHINE = 'machine_delete_machine'
+    MACHINE_CREATE = 'machine_create'
+    MACHINE_DELETE = 'machine_delete'
     MACHINE_REGISTER_SETTING = 'machine_register_setting'
     MACHINE_REGISTER_STATE = 'machine_register_state'
     MACHINE_UPDATE_SETTING = 'machine_update_setting'
     MACHINE_UPDATE_STATE = 'machine_update_state'
 
-    USER_ADD_FAMILIES = 'user_add_families'
-    USER_CREATE_USER = 'user_create_user'
-    USER_DELETE_FAMILIES = 'user_delete_families'
-    USER_DELETE_USER = 'user_delete_user'
+    USER_CREATE = 'user_create'
+    USER_DELETE = 'user_delete'
     USER_SET_EMAIL = 'user_set_email'
-    USER_SET_FNAME = 'user_set_fname' # Sets user's first name
-    USER_SET_LNAME = 'user_set_lname' # Sets user's last name
+    USER_SET_FNAME = 'user_set_fname' # Set user first name
+    USER_SET_LNAME = 'user_set_lname' # Set user last name
 
 def call_function(name: str, data: dict):
     try:
@@ -87,52 +82,48 @@ def process(packet: Communicator.Packet):
     if isinstance(packet, Communicator.OperationPacket):
         # Set function depending on type of operation
         if packet.type is Communicator.OperationPacket.Type.FAMILY_ADD_CHILDREN:
-            function_name = Cloud_Functions.FAMILY_ADD_CHILDREN
-        if packet.type is Communicator.OperationPacket.Type.FAMILY_ADD_GROUP:
-            function_name = Cloud_Functions.FAMILY_ADD_GROUP
+            function_name = Cloud_Functions.FAMILY_ADD_CHILDREN.value
+        if packet.type is Communicator.OperationPacket.Type.FAMILY_ADD_GROUPS:
+            function_name = Cloud_Functions.FAMILY_ADD_GROUPS.value
         if packet.type is Communicator.OperationPacket.Type.FAMILY_ADD_PERMISSIONS:
-            function_name = Cloud_Functions.FAMILY_ADD_PERMISSIONS
+            function_name = Cloud_Functions.FAMILY_ADD_PERMISSIONS.value
         if packet.type is Communicator.OperationPacket.Type.FAMILY_ADD_USER:
-            function_name = Cloud_Functions.FAMILY_ADD_USER
-        if packet.type is Communicator.OperationPacket.Type.FAMILY_CREATE_FAMILY:
-            function_name = Cloud_Functions.FAMILY_CREATE_FAMILY
-        if packet.type is Communicator.OperationPacket.Type.FAMILY_DELETE_GROUP:
-            function_name = Cloud_Functions.FAMILY_DELETE_GROUP
+            function_name = Cloud_Functions.FAMILY_ADD_USER.value
+        if packet.type is Communicator.OperationPacket.Type.FAMILY_CREATE:
+            function_name = Cloud_Functions.FAMILY_CREATE.value
+        if packet.type is Communicator.OperationPacket.Type.FAMILY_REMOVE_GROUP:
+            function_name = Cloud_Functions.FAMILY_REMOVE_GROUP.value
         if packet.type is Communicator.OperationPacket.Type.FAMILY_DELETE_PERMISSIONS:
-            function_name = Cloud_Functions.FAMILY_DELETE_PERMISSIONS
-        if packet.type is Communicator.OperationPacket.Type.FAMILY_DELETE_USER:
-            function_name = Cloud_Functions.FAMILY_DELETE_USER
-        if packet.type is Communicator.OperationPacket.Type.FAMILY_KILL_CHILDREN:
-            function_name = Cloud_Functions.FAMILY_KILL_CHILDREN
+            function_name = Cloud_Functions.FAMILY_DELETE_PERMISSIONS.value
+        if packet.type is Communicator.OperationPacket.Type.FAMILY_REMOVE_USER:
+            function_name = Cloud_Functions.FAMILY_REMOVE_USER.value
+        if packet.type is Communicator.OperationPacket.Type.FAMILY_REMOVE_CHILD:
+            function_name = Cloud_Functions.FAMILY_REMOVE_CHILD.value
         if packet.type is Communicator.OperationPacket.Type.FAMILY_SET_PARENT:
-            function_name = Cloud_Functions.FAMILY_SET_PARENT
+            function_name = Cloud_Functions.FAMILY_SET_PARENT.value
         
         if packet.type is Communicator.OperationPacket.Type.INACTIVE_SET_INACTIVE:
-            function_name = Cloud_Functions.INACTIVE_SET_INACTIVE
+            function_name = Cloud_Functions.INACTIVE_SET_INACTIVE.value
 
-        if packet.type is Communicator.OperationPacket.Type.MACHINE_CREATE_MACHINE:
-            function_name = Cloud_Functions.MACHINE_CREATE_MACHINE
-        if packet.type is Communicator.OperationPacket.Type.MACHINE_DELETE_MACHINE:
-            function_name = Cloud_Functions.MACHINE_DELETE_MACHINE
+        if packet.type is Communicator.OperationPacket.Type.MACHINE_CREATE:
+            function_name = Cloud_Functions.MACHINE_CREATE.value
+        if packet.type is Communicator.OperationPacket.Type.MACHINE_DELETE:
+            function_name = Cloud_Functions.MACHINE_DELETE.value
         if packet.type is Communicator.OperationPacket.Type.MACHINE_REGISTER_SETTING:
-            function_name = Cloud_Functions.MACHINE_REGISTER_SETTING
+            function_name = Cloud_Functions.MACHINE_REGISTER_SETTING.value
         if packet.type is Communicator.OperationPacket.Type.MACHINE_REGISTER_STATE:
-            function_name = Cloud_Functions.MACHINE_REGISTER_STATE
+            function_name = Cloud_Functions.MACHINE_REGISTER_STATE.value
         
-        if packet.type is Communicator.OperationPacket.Type.USER_ADD_FAMILIES:
-            function_name = Cloud_Functions.USER_ADD_FAMILIES
-        if packet.type is Communicator.OperationPacket.Type.USER_CREATE_USER:
-            function_name = Cloud_Functions.USER_CREATE_USER
-        if packet.type is Communicator.OperationPacket.Type.USER_DELETE_FAMILIES:
-            function_name = Cloud_Functions.USER_DELETE_FAMILIES
-        if packet.type is Communicator.OperationPacket.Type.USER_DELETE_USER:
-            function_name = Cloud_Functions.USER_DELETE_USER
+        if packet.type is Communicator.OperationPacket.Type.USER_CREATE:
+            function_name = Cloud_Functions.USER_CREATE.value
+        if packet.type is Communicator.OperationPacket.Type.USER_DELETE:
+            function_name = Cloud_Functions.USER_DELETE.value
         if packet.type is Communicator.OperationPacket.Type.USER_SET_EMAIL:
-            function_name = Cloud_Functions.USER_SET_EMAIL
+            function_name = Cloud_Functions.USER_SET_EMAIL.value
         if packet.type is Communicator.OperationPacket.Type.USER_SET_FNAME:
-            function_name = Cloud_Functions.USER_SET_FNAME
+            function_name = Cloud_Functions.USER_SET_FNAME.value
         if packet.type is Communicator.OperationPacket.Type.USER_SET_LNAME:
-            function_name = Cloud_Functions.USER_SET_LNAME
+            function_name = Cloud_Functions.USER_SET_LNAME.value
 
         # Set payload
         payload = packet.data

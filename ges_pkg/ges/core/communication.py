@@ -58,32 +58,31 @@ class Communicator:
             # CREATE_MACHINE = 1
             # DELETE_MACHINE = 2
             FAMILY_ADD_CHILDREN = 1
-            FAMILY_ADD_GROUP = 2
+            FAMILY_ADD_GROUPS = 2
             FAMILY_ADD_PERMISSIONS = 3
             FAMILY_ADD_USER = 4
-            FAMILY_CREATE_FAMILY = 5
-            FAMILY_DELETE_GROUP = 6
+            FAMILY_CREATE = 5
+            FAMILY_DELETE = 6
             FAMILY_DELETE_PERMISSIONS = 7
-            FAMILY_DELETE_USER = 8
-            FAMILY_KILL_CHILDREN = 9
-            FAMILY_SET_PARENT = 10
+            FAMILY_REMOVE_CHILD = 8
+            FAMILY_REMOVE_USER = 9
+            FAMILY_REMOVE_GROUP = 10
+            FAMILY_SET_PARENT = 11
 
-            INACTIVE_SET_INACTIVE = 11
+            INACTIVE_SET_INACTIVE = 12
 
-            MACHINE_CREATE_MACHINE = 12
-            MACHINE_DELETE_MACHINE = 13
-            MACHINE_REGISTER_SETTING = 14
-            MACHINE_REGISTER_STATE = 15
-            MACHINE_UPDATE_SETTING = 16
-            MACHINE_UPDATE_STATE = 17
+            MACHINE_CREATE = 13
+            MACHINE_DELETE = 14
+            MACHINE_REGISTER_SETTING = 15
+            MACHINE_REGISTER_STATE = 16
+            MACHINE_UPDATE_SETTING = 17
+            MACHINE_UPDATE_STATE = 18
 
-            USER_ADD_FAMILIES = 18
-            USER_CREATE_USER = 19
-            USER_DELETE_FAMILIES = 20
-            USER_DELETE_USER = 21
-            USER_SET_EMAIL = 22
-            USER_SET_FNAME = 23
-            USER_SET_LNAME = 24
+            USER_CREATE = 19
+            USER_DELETE = 20
+            USER_SET_EMAIL = 21
+            USER_SET_FNAME = 22
+            USER_SET_LNAME = 23
 
         type: Type = Type.UNKNOWN
         data: dict = typing.Dict
