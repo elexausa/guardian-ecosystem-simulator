@@ -44,7 +44,7 @@ class Cloud_Functions(str, Enum):
     FAMILY_REMOVE_CHILD = 'family_remove_child'
     FAMILY_REMOVE_USER = 'family_remove_user'
     FAMILY_SET_PARENT = 'family_set_parent'
-    
+
     INACTIVE_SET_INACTIVE = 'inactive_set_inactive'
 
     MACHINE_CREATE = 'machine_create'
@@ -53,6 +53,7 @@ class Cloud_Functions(str, Enum):
     MACHINE_REGISTER_STATE = 'machine_register_state'
     MACHINE_UPDATE_SETTING = 'machine_update_setting'
     MACHINE_UPDATE_STATE = 'machine_update_state'
+    MACHINE_HEARTBEAT = 'machine_heartbeat'
 
     USER_CREATE = 'user_create'
     USER_DELETE = 'user_delete'
@@ -63,6 +64,7 @@ class Cloud_Functions(str, Enum):
 def call_function(name: str, data: dict):
     try:
         logger.info('Calling cloud function %s' % name)
+        logger.debug('Sending data: %s' % data)
         r = requests.post(url=ENDPOINT.format(function_name=name), data=json.dumps(data), headers={'Content-type': 'application/json'})
     except Exception as e: # TODO: Handle specific exceptions
         logger.warn('Could not call cloud function (error: %s)' % str(e))
@@ -101,7 +103,7 @@ def process(packet: Communicator.Packet):
             function_name = Cloud_Functions.FAMILY_REMOVE_CHILD.value
         if packet.type is Communicator.OperationPacket.Type.FAMILY_SET_PARENT:
             function_name = Cloud_Functions.FAMILY_SET_PARENT.value
-        
+
         if packet.type is Communicator.OperationPacket.Type.INACTIVE_SET_INACTIVE:
             function_name = Cloud_Functions.INACTIVE_SET_INACTIVE.value
 
@@ -113,7 +115,7 @@ def process(packet: Communicator.Packet):
             function_name = Cloud_Functions.MACHINE_REGISTER_SETTING.value
         if packet.type is Communicator.OperationPacket.Type.MACHINE_REGISTER_STATE:
             function_name = Cloud_Functions.MACHINE_REGISTER_STATE.value
-        
+
         if packet.type is Communicator.OperationPacket.Type.USER_CREATE:
             function_name = Cloud_Functions.USER_CREATE.value
         if packet.type is Communicator.OperationPacket.Type.USER_DELETE:
@@ -124,6 +126,10 @@ def process(packet: Communicator.Packet):
             function_name = Cloud_Functions.USER_SET_FNAME.value
         if packet.type is Communicator.OperationPacket.Type.USER_SET_LNAME:
             function_name = Cloud_Functions.USER_SET_LNAME.value
+
+        # Events
+        if packet.type is Communicator.EventPacket.Type.HEARTBEAT:
+            function_name = Cloud_Functions.MACHINE_HEARTBEAT.value
 
         # Set payload
         payload = packet.data

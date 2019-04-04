@@ -25,6 +25,7 @@ import string
 import json
 import simpy
 import logging
+import typing
 
 from . import util
 from . import communication
@@ -34,19 +35,33 @@ from . import communicators
 logger = logging.getLogger(__name__)
 
 
-class Device(object):
+@dataclasses.dataclass
+class Property:
+    """Represents a generic property object.
 
-    SERIAL_NUMBER_LENGTH = 16
-    MAC_ADDRESS_LENGTH = 12
+    :param name: The property name.
+    :param description: The property description.
+    :param data: The property data.
+
+    :type name: str
+    :type description: str
+    :type data: :class:`Property.Data`
+    """
+
 
     @dataclasses.dataclass
     class Data:
-        """Convenient dataclass for storing cross-platform
-        parsable data for device instance.
-        """
+        """Convenient class for storing cross-platform
+        parsable data.
 
+        :param type: The data type
+        :param value: The value of the data
+
+        :type type: :class:`Data.Type`
+        :type value: typing.Any
+        """
         class Type(str, Enum):
-            """Defines various possible data types.
+            """Defines various data types.
             """
             UNKNOWN = 'unknown'
             UINT8 = 'uint8'
@@ -59,11 +74,50 @@ class Device(object):
             FLOAT = 'float'
             STRING = 'string'
 
-        name: str = 'Data name'
-        type: Type = Type.UNKNOWN
-        value: object = None
-        description: str = 'Data description'
+            def __str__(self):
+                """Override __str__ to provide enum value.
 
+                :returns: Enum value.
+                :rtype: str
+                """
+                return str(self.value)
+
+        type: str = Type.UNKNOWN.value
+        value: object = None
+
+        ###############
+        ## Utilities ##
+        ###############
+
+        def to_dict(self):
+            """Return property data as dict.
+
+            :return: The property data dictionary.
+            :rtype: dict
+            """
+            return dataclasses.asdict(self)
+
+    name: str
+    description: str
+    data: typing.List[dict]
+
+    ###############
+    ## Utilities ##
+    ###############
+
+    def to_dict(self):
+        """Return property as dict.
+
+        :return: The property dictionary.
+        :rtype: dict
+        """
+        return dataclasses.asdict(self)
+
+
+class Device(object):
+
+    SERIAL_NUMBER_LENGTH = 16
+    MAC_ADDRESS_LENGTH = 12
 
     @dataclasses.dataclass
     class Metadata:
@@ -120,11 +174,13 @@ class Device(object):
         self._settings = []
 
         self.save_setting(
-            Device.Data(
+            Property(
                 name='heartbeat_period',
-                type=Device.Data.Type.UINT16,
-                value=360000,
-                description='Device heartbeat period (in seconds)'
+                description='Device heartbeat period (in seconds)',
+                data=Property.Data(
+                    type=Property.Data.Type.UINT16,
+                    value=360000
+                )
             )
         )
 
@@ -132,11 +188,13 @@ class Device(object):
         self._states = []
 
         self.save_state(
-            Device.Data(
+            Property(
                 name='firmware_version',
-                type=Device.Data.Type.STRING,
-                value='0.0.1',
-                description='Device firmware version'
+                description='Device firmware version',
+                data=Property.Data(
+                    type=Property.Data.Type.STRING,
+                    value='0.0.1'
+                )
             )
         )
 
@@ -178,7 +236,7 @@ class Device(object):
         # Can't find setting
         raise RuntimeError('Could not retrieve setting named "%s"' % name)
 
-    def save_setting(self, setting: Data):
+    def save_setting(self, setting: Property):
         """Saves provided setting.
 
         If setting with the given name already exists, it
@@ -220,7 +278,7 @@ class Device(object):
         # Can't find state
         raise RuntimeError('Could not retrieve state named "%s"' % name)
 
-    def save_state(self, state: Data):
+    def save_state(self, state: Property):
         """Saves provided state.
 
         If state with the given name already exists, it
@@ -326,3 +384,4 @@ class Device(object):
                 return True
 
         raise RuntimeError('Communicator type (%s) not available' % type)
+

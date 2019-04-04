@@ -54,13 +54,19 @@ class ValveController(model.Device):
         CLOSING = 'CLOSING'
         RESTING = 'RESTING'
 
+        def __repr__(self):
+            return str(self.value)
+
     class ValveState(str, Enum):
         """Defines possible motor states.
         """
         OPENED = 'OPENED'
         CLOSED = 'CLOSED'
         STUCK = 'STUCK'
- 
+
+        def __repr__(self):
+            return str(self.value)
+
     # Disable object `__dict__`
     __slots__ = ('_main_process', '_heartbeat_process', '_leak_process', '_rf_recv_pipe', 'leak_detectors', '_ip_recv_pipe')
 
@@ -70,7 +76,7 @@ class ValveController(model.Device):
 
     # Startup
     STARTUP_TIME_MEAN = 5 # seconds
-    STARTUP_TIME_STDDEV = 2 # seconds
+    STARTUP_TIME_STDDEV = 1 # seconds
 
     # Heartbeat
     HEARTBEAT_PERIOD = 1*60*60*12 # 12 hours -> seconds
@@ -100,41 +106,49 @@ class ValveController(model.Device):
 
         # Heartbeat period
         self.save_setting(
-           model.Device.Data(
+            model.Property(
                 name='heartbeat_period',
-                type=model.Device.Data.Type.UINT16,
-                value=ValveController.HEARTBEAT_PERIOD,
-                description='Device heartbeat period (in seconds)'
+                description='Device heartbeat period (in seconds)',
+                data=model.Property.Data(
+                    type=model.Property.Data.Type.UINT16,
+                    value=ValveController.HEARTBEAT_PERIOD
+                )
             )
         )
 
         # Time to wait before reacting to leak event
         self.save_setting(
-           model.Device.Data(
+            model.Property(
                 name='close_delay',
-                type=model.Device.Data.Type.UINT16,
-                value=5,
-                description='Amount of time to wait (in seconds) before closing valve'
+                description='Amount of time to wait (in seconds) before closing valve',
+                data=model.Property.Data(
+                    type=model.Property.Data.Type.UINT16,
+                    value=5
+                )
             )
         )
 
         # Latitudinal GPS coordinate
         self.save_setting(
-           model.Device.Data(
+            model.Property(
                 name='location_gps_lat',
-                type=model.Device.Data.Type.FLOAT,
-                value=5,
-                description='Latitudinal GPS coordinate'
+                description='Latitudinal GPS coordinate',
+                data=model.Property.Data(
+                    type=model.Property.Data.Type.FLOAT,
+                    value=5
+                )
             )
         )
 
         # Longitudinal GPS coordinate
         self.save_setting(
-           model.Device.Data(
+            model.Property(
                 name='location_gps_lon',
-                type=model.Device.Data.Type.FLOAT,
-                value=5,
-                description='Longitudinal GPS coordinate'
+                description='Longitudinal GPS coordinate',
+                data=model.Property.Data(
+                    type=model.Property.Data.Type.FLOAT,
+                    value=5
+                )
             )
         )
 
@@ -144,51 +158,61 @@ class ValveController(model.Device):
 
         # Valve opened/closed
         self.save_state(
-           model.Device.Data(
+            model.Property(
                 name='valve',
-                type=model.Device.Data.Type.STRING,
-                value=ValveController.ValveState.OPENED,
-                description='State of valve as OPENED/CLOSED/STUCK'
+                description='State of valve as OPENED/CLOSED/STUCK',
+                data=model.Property.Data(
+                    type=model.Property.Data.Type.STRING,
+                    value=ValveController.ValveState.OPENED
+                )
             )
         )
 
         # Motor opening/closing/resting
         self.save_state(
-           model.Device.Data(
+            model.Property(
                 name='motor',
-                type=model.Device.Data.Type.STRING,
-                value=ValveController.MotorState.RESTING,
-                description='State of motor as opening/closing/resting'
+                description='State of motor as opening/closing/resting',
+                data=model.Property.Data(
+                    type=model.Property.Data.Type.STRING,
+                    value=ValveController.MotorState.RESTING
+                )
             )
         )
 
         # Realtime motor current draw
         self.save_state(
-           model.Device.Data(
+            model.Property(
                 name='motor_current',
-                type=model.Device.Data.Type.FLOAT,
-                value=0.0,
-                description='Current draw of motor (in Amps)'
+                description='Current draw of motor (in Amps)',
+                data=model.Property.Data(
+                    type=model.Property.Data.Type.FLOAT,
+                    value=0.0
+                )
             )
         )
 
         # Firmware version
         self.save_state(
-           model.Device.Data(
+            model.Property(
                 name='firmware_version',
-                type=model.Device.Data.Type.STRING,
-                value='4.0.0',
-                description='Valve controller firmware version'
+                description='Valve controller firmware version',
+                data=model.Property.Data(
+                    type=model.Property.Data.Type.STRING,
+                    value='4.0.0'
+                )
             )
         )
 
         # Probe1 wet true/false
         self.save_state(
-           model.Device.Data(
+            model.Property(
                 name='probe1_wet',
-                type=model.Device.Data.Type.BOOLEAN,
-                value=False,
-                description='True if water detected at probe1'
+                description='True if water detected at probe1',
+                data=model.Property.Data(
+                    type=model.Property.Data.Type.BOOLEAN,
+                    value=False
+                )
             )
         )
 
@@ -243,7 +267,6 @@ class ValveController(model.Device):
 
                     # OperationPacket()
                     type=communication.Communicator.OperationPacket.Type.MACHINE_CREATE,
-                    # data=self.dump_json()
 
                     data = self.dump_json()
                 )
@@ -254,13 +277,13 @@ class ValveController(model.Device):
                 # Normal operation
                 yield self._env.timeout(random.randint(60, 300))
                 logger.info('%s: beep', self._instance_name)
-    
+
     def heartbeat_process(self):
         """Sends a heartbeat to show the valve controller is still online
         and update cloud information.
         """
         while True:
-            yield self._env.timeout(self.get_setting('heartbeat_period').value)
+            yield self._env.timeout(self.get_setting('heartbeat_period').data.value)
 
             # Prep packet
             packet = communication.Communicator.EventPacket(
@@ -269,10 +292,11 @@ class ValveController(model.Device):
                 simulation_time=self._env.now,
                 realworld_time=str(datetime.datetime.now()),
 
-                # OperationPacket()
+                # EventPacket()
                 type=communication.Communicator.EventPacket.Type.HEARTBEAT,
+
                 data=json.dumps({
-                    "timestamp": str(datetime.datetime.now())  
+                    "timestamp": str(datetime.datetime.now())
                 })
             )
 
@@ -314,40 +338,40 @@ class ValveController(model.Device):
         valve_state = self.get_state('valve')
 
         # Ensure valve starting as opened
-        if valve_state.value in [ValveController.ValveState.OPENED, ValveController.ValveState.STUCK]:
+        if valve_state.data.value in [ValveController.ValveState.OPENED, ValveController.ValveState.STUCK]:
             logging.warning(self._instance_name + ': VALVE ALREADY CLOSED, ABORTING')
             return
 
         # Ensure motor starting from resting
-        if motor_state.value != ValveController.MotorState.RESTING:
+        if motor_state.data.value != ValveController.MotorState.RESTING:
             logging.warning(self._instance_name + ': MOTOR BUSY, ABORTING')
             return
-        
+
         # Set to closing
-        motor_state.value = ValveController.MotorState.CLOSING
-        
+        motor_state.data.value = ValveController.MotorState.CLOSING
+
         # Allow time to close (MOTOR_RUN_TIME_MEAN +- MOTOR_RUN_TIME_STDDEV)
         yield self._env.timeout(random.normalvariate(ValveController.MOTOR_RUN_TIME_MEAN, ValveController.MOTOR_RUN_TIME_STDDEV))
 
         # Occasionally force stall condition
         if random.randint(0, 100) <= ValveController.CHANCE_TO_STALL:
             # Valve is stuck
-            valve_state.value = ValveController.ValveState.STUCK
+            valve_state.data.value = ValveController.ValveState.STUCK
             logging.info(self._instance_name + ': VALVE STALLED')
             return
 
         # Stop motor
-        motor_state.value = ValveController.MotorState.RESTING
+        motor_state.data.value = ValveController.MotorState.RESTING
 
         # Done
         logging.info(self._instance_name + ': VALVE CLOSED')
-        
+
     def acknowledge_leak(self, time: int):
         logger.info(self._instance_name + ': LEAK DETECTED')
 
         # Set probe to wet
-        self.get_state('probe1_wet').value = True
- 
+        self.get_state('probe1_wet').data.value = True
+
         # Prep packet
         packet = communication.Communicator.EventPacket(
             # Packet()
