@@ -44,32 +44,29 @@ class Cloud_Functions(str, Enum):
     FAMILY_REMOVE_CHILD = 'family_remove_child'
     FAMILY_REMOVE_USER = 'family_remove_user'
     FAMILY_SET_PARENT = 'family_set_parent'
-
     INACTIVE_SET_INACTIVE = 'inactive_set_inactive'
-
     MACHINE_CREATE = 'machine_create'
     MACHINE_DELETE = 'machine_delete'
     MACHINE_REGISTER_SETTING = 'machine_register_setting'
     MACHINE_REGISTER_STATE = 'machine_register_state'
     MACHINE_UPDATE_SETTING = 'machine_update_setting'
     MACHINE_UPDATE_STATE = 'machine_update_state'
-    MACHINE_HEARTBEAT = 'machine_heartbeat'
-
     USER_CREATE = 'user_create'
     USER_DELETE = 'user_delete'
     USER_SET_EMAIL = 'user_set_email'
     USER_SET_FNAME = 'user_set_fname' # Set user first name
     USER_SET_LNAME = 'user_set_lname' # Set user last name
+    EVENTS_CREATE = 'events_create'
 
 def call_function(name: str, data: dict):
     try:
         logger.info('Calling cloud function %s' % name)
-        logger.debug('Sending data: %s' % data)
+        logger.info('Sending data: %s' % data)
         r = requests.post(url=ENDPOINT.format(function_name=name), data=json.dumps(data), headers={'Content-type': 'application/json'})
     except Exception as e: # TODO: Handle specific exceptions
         logger.warn('Could not call cloud function (error: %s)' % str(e))
     else:
-        logger.warn('Cloud function called, result: %s' % str(r.content))
+        logger.info('Cloud function called, result: %s' % str(json.loads(r.content)['status']))
 
 def process(packet: Communicator.Packet):
     """Parse raw message and call relevant cloud function.
@@ -77,12 +74,16 @@ def process(packet: Communicator.Packet):
     logger.debug("Processing packet")
 
     # Default values
-    function_name = 'hello_cloud'
+    function_name = ''
     payload = {}
 
-    # Handle operation packet
+    # Set function depending on type of operation
     if isinstance(packet, Communicator.OperationPacket):
-        # Set function depending on type of operation
+        ################
+        ## Operations ##
+        ################
+
+        # Family
         if packet.type is Communicator.OperationPacket.Type.FAMILY_ADD_CHILDREN:
             function_name = Cloud_Functions.FAMILY_ADD_CHILDREN.value
         if packet.type is Communicator.OperationPacket.Type.FAMILY_ADD_GROUPS:
@@ -104,9 +105,11 @@ def process(packet: Communicator.Packet):
         if packet.type is Communicator.OperationPacket.Type.FAMILY_SET_PARENT:
             function_name = Cloud_Functions.FAMILY_SET_PARENT.value
 
+        # Inactive
         if packet.type is Communicator.OperationPacket.Type.INACTIVE_SET_INACTIVE:
             function_name = Cloud_Functions.INACTIVE_SET_INACTIVE.value
 
+        # Machine
         if packet.type is Communicator.OperationPacket.Type.MACHINE_CREATE:
             function_name = Cloud_Functions.MACHINE_CREATE.value
         if packet.type is Communicator.OperationPacket.Type.MACHINE_DELETE:
@@ -116,6 +119,7 @@ def process(packet: Communicator.Packet):
         if packet.type is Communicator.OperationPacket.Type.MACHINE_REGISTER_STATE:
             function_name = Cloud_Functions.MACHINE_REGISTER_STATE.value
 
+        # User
         if packet.type is Communicator.OperationPacket.Type.USER_CREATE:
             function_name = Cloud_Functions.USER_CREATE.value
         if packet.type is Communicator.OperationPacket.Type.USER_DELETE:
@@ -127,14 +131,16 @@ def process(packet: Communicator.Packet):
         if packet.type is Communicator.OperationPacket.Type.USER_SET_LNAME:
             function_name = Cloud_Functions.USER_SET_LNAME.value
 
-        # Events
-        if packet.type is Communicator.EventPacket.Type.HEARTBEAT:
-            function_name = Cloud_Functions.MACHINE_HEARTBEAT.value
+    elif isinstance(packet, Communicator.EventPacket):
+        function_name = Cloud_Functions.EVENTS_CREATE.value
+    else:
+        logger.info("Error processing packet, dropped")
+        return
 
-        # Set payload
-        payload = packet.data
+    # Set payload
+    payload = packet.data
 
-        # TODO: Handle event packet
+    # Call the function in separate thread
+    threading.Thread(target=call_function, args=(function_name, payload,)).start()
 
-        # Call the function in separate thread
-        threading.Thread(target=call_function, args=(function_name, payload,)).start()
+    logger.debug("Packet processed")

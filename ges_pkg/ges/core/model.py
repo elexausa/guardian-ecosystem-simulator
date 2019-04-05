@@ -127,7 +127,7 @@ class Device(object):
         """
         codename: str = 'unknown'
         serial_number: str = 'unknown'
-        manufactured_at: str = 'unknown'
+        programmed_on: str = 'unknown'
         mac_address: str = 'unknown'
 
     # Define slots to override `__dict__` and restrict dynamic class modification
@@ -145,7 +145,7 @@ class Device(object):
         self._metadata = Device.Metadata(
             codename=codename,
             serial_number=self.generate_serial(),
-            manufactured_at=str(datetime.datetime.now()),
+            programmed_on=str(datetime.datetime.now()),
             mac_address=self.generate_mac_addr()
         )
 
@@ -305,8 +305,8 @@ class Device(object):
         # todo: implement custom exceptions
         raise Exception('run() must be overridden by subclass!')
 
-    def dump_json(self):
-        """Returns device data as JSON object."""
+    def to_dict(self):
+        """Returns device data as dict object."""
         # Build device data
         output = {
             'metadata': dataclasses.asdict(self._metadata),
@@ -315,19 +315,22 @@ class Device(object):
         }
 
         return output
-        #return json.dumps(output, indent=4, sort_keys=True)
+
+    def to_json(self, indent=0):
+        """Returns device data as JSON string.
+        """
+        return json.dumps(self.to_dict(), indent=indent, sort_keys=True)
+
 
     def generate_serial(self):
-        """
-        Should be overridden by implementation and be made
+        """Should be overridden by implementation and be made
         to generate realistic serial numbers.
         """
         # Return a random string
         return util.generate.string(size=Device.SERIAL_NUMBER_LENGTH)
 
     def generate_mac_addr(self):
-        """
-        Should be overridden by implementation and be made
+        """Should be overridden by implementation and be made
         to generate realistic MAC addresses.
         """
         # Return a random string

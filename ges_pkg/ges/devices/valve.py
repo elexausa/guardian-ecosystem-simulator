@@ -79,7 +79,8 @@ class ValveController(model.Device):
     STARTUP_TIME_STDDEV = 1 # seconds
 
     # Heartbeat
-    HEARTBEAT_PERIOD = 1*60*60*12 # 12 hours -> seconds
+    # HEARTBEAT_PERIOD = 1*60*60*12 # 12 hours -> seconds
+    HEARTBEAT_PERIOD = 30 # 30 seconds minutes
 
     # Internal detection
     LEAK_DETECTION_TIME_MEAN = 1*60*60 # 1 hour
@@ -222,7 +223,21 @@ class ValveController(model.Device):
         # Spawn simulation processes
         self._main_process = self._env.process(self.main_process())
         self._leak_process = self._env.process(self.leak_process())
-        self._heartbeat_process = self._env.process(self.heartbeat_process())
+        self._heartbeat_process = None
+
+    def generate_serial(self):
+        """
+        Should be overridden by implementation and be made
+        to generate realistic serial numbers.
+        """
+        # Return a random string
+        return '{model}{revision}{week}{year}{unit_number}'.format(
+            model='GVC1',
+            revision='01',
+            week=str(datetime.datetime.now().isocalendar()[1]), # Week number
+            year=str(datetime.datetime.now().isocalendar()[0]), # Year
+            unit_number=str(random.randint(0,999999)).zfill(6) # Ensure padded to 6 chars
+        )
 
     def generate_mac_addr(self):
         """Overrides super generator to force custom format.
@@ -268,11 +283,14 @@ class ValveController(model.Device):
                     # OperationPacket()
                     type=communication.Communicator.OperationPacket.Type.MACHINE_CREATE,
 
-                    data = self.dump_json()
+                    data=self.to_dict()
                 )
 
                 # Send
                 self.transmit(communicators.ip_network.IP_Network, packet)
+
+                # Start heartbeat
+                self._env.process(self.heartbeat_process())
             else:
                 # Normal operation
                 yield self._env.timeout(random.randint(60, 300))
@@ -295,9 +313,12 @@ class ValveController(model.Device):
                 # EventPacket()
                 type=communication.Communicator.EventPacket.Type.HEARTBEAT,
 
-                data=json.dumps({
+                data={
+                    "target": 'machine-{}'.format(str(self._metadata.serial_number)),
+                    "trigger": "self",
+                    "type": "HEARTBEAT",
                     "timestamp": str(datetime.datetime.now())
-                })
+                }
             )
 
             # Send
@@ -338,17 +359,17 @@ class ValveController(model.Device):
         valve_state = self.get_state('valve')
 
         # Ensure valve starting as opened
-        if valve_state.data.value in [ValveController.ValveState.OPENED, ValveController.ValveState.STUCK]:
+        if valve_state.data.value in [ValveController.ValveState.OPENED.value, ValveController.ValveState.STUCK.value]:
             logging.warning(self._instance_name + ': VALVE ALREADY CLOSED, ABORTING')
             return
 
         # Ensure motor starting from resting
-        if motor_state.data.value != ValveController.MotorState.RESTING:
+        if motor_state.data.value != ValveController.MotorState.RESTING.value:
             logging.warning(self._instance_name + ': MOTOR BUSY, ABORTING')
             return
 
         # Set to closing
-        motor_state.data.value = ValveController.MotorState.CLOSING
+        motor_state.data.value = ValveController.MotorState.CLOSING.value
 
         # Allow time to close (MOTOR_RUN_TIME_MEAN +- MOTOR_RUN_TIME_STDDEV)
         yield self._env.timeout(random.normalvariate(ValveController.MOTOR_RUN_TIME_MEAN, ValveController.MOTOR_RUN_TIME_STDDEV))
@@ -356,7 +377,7 @@ class ValveController(model.Device):
         # Occasionally force stall condition
         if random.randint(0, 100) <= ValveController.CHANCE_TO_STALL:
             # Valve is stuck
-            valve_state.data.value = ValveController.ValveState.STUCK
+            valve_state.data.value = ValveController.ValveState.STUCK.value
             logging.info(self._instance_name + ': VALVE STALLED')
             return
 
