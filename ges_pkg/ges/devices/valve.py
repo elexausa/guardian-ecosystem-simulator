@@ -80,11 +80,14 @@ class ValveController(model.Device):
 
     # Heartbeat
     # HEARTBEAT_PERIOD = 1*60*60*12 # 12 hours -> seconds
-    HEARTBEAT_PERIOD = 30 # 30 seconds minutes
+    # HEARTBEAT_PERIOD = 1*60*60 # 1 hour
+    HEARTBEAT_PERIOD = 30 # 30 seconds
 
     # Internal detection
-    LEAK_DETECTION_TIME_MEAN = 1*60*60 # 1 hour
-    LEAK_DETECTION_TIME_STDDEV = 1*60*15 # 15 minutes
+    LEAK_DETECTION_TIME_MEAN = 1*60*30 # 30 minutes
+    LEAK_DETECTION_TIME_STDDEV = 1*60*5 # 5 minutes
+    # LEAK_DETECTION_TIME_MEAN = 30 # 30 seconds
+    # LEAK_DETECTION_TIME_STDDEV = 5 # 5 seconds
 
     # Motor open/close
     MOTOR_RUN_TIME_MEAN = 5 # seconds
@@ -296,33 +299,38 @@ class ValveController(model.Device):
                 yield self._env.timeout(random.randint(60, 300))
                 logger.info('%s: beep', self._instance_name)
 
+    def send_event(self, type: str, origin: str, extra_data: dict = None):
+        # Prep packet
+        packet = communication.Communicator.EventPacket(
+            # Packet()
+            sender=self._instance_name,
+            simulation_time=self._env.now,
+            realworld_time=str(datetime.datetime.now()),
+
+            # EventPacket()
+            type = communication.Communicator.EventPacket.Type.HEARTBEAT,
+
+            data = {
+                "target": 'machine-{}'.format(str(self._metadata.serial_number)),
+                "type": type,
+                "origin": origin,
+                "timestamp": str(datetime.datetime.now()),
+                "data": extra_data
+            }
+        )
+
+        # Send
+        self.transmit(communicators.ip_network.IP_Network, packet)
+
     def heartbeat_process(self):
         """Sends a heartbeat to show the valve controller is still online
         and update cloud information.
         """
         while True:
+            self.send_event(type="HEARTBEAT", origin="self")
+
+            # Wait for next heartbeat
             yield self._env.timeout(self.get_setting('heartbeat_period').data.value)
-
-            # Prep packet
-            packet = communication.Communicator.EventPacket(
-                # Packet()
-                sender=self._instance_name,
-                simulation_time=self._env.now,
-                realworld_time=str(datetime.datetime.now()),
-
-                # EventPacket()
-                type=communication.Communicator.EventPacket.Type.HEARTBEAT,
-
-                data={
-                    "target": 'machine-{}'.format(str(self._metadata.serial_number)),
-                    "trigger": "self",
-                    "type": "HEARTBEAT",
-                    "timestamp": str(datetime.datetime.now())
-                }
-            )
-
-            # Send
-            self.transmit(communicators.ip_network.IP_Network, packet)
 
     def leak_process(self):
         """Occasionally detects a leak.
@@ -342,43 +350,97 @@ class ValveController(model.Device):
     ####################
 
     def open(self):
-        # TODO
-        pass
-
-    def close(self):
-        """Closes valve.
+        """Opens valve.
 
         Must be called via simpy process (simpy.Environment.process()).
         """
+        # Send start event
+        logger.info(self._instance_name + ': OPENING VALVE')
+        self.send_event(type="VALVE_OPENING", origin="self")
 
-        logger.info(self._instance_name + ': CLOSING VALVE')
-
-        # Grab required info
+        # Grab states
         motor_state = self.get_state('motor')
-        # motor_amperage_state = self.get_state('motor_current')
         valve_state = self.get_state('valve')
 
-        # Ensure valve starting as opened
-        if valve_state.data.value in [ValveController.ValveState.OPENED.value, ValveController.ValveState.STUCK.value]:
-            logging.warning(self._instance_name + ': VALVE ALREADY CLOSED, ABORTING')
+        # Ensure valve not already open
+        if valve_state.data.value == ValveController.ValveState.OPENED:
+            logging.info(self._instance_name + ': VALVE ALREADY OPENED')
+            self.send_event(type="VALVE_OPENED", origin="self")
             return
 
         # Ensure motor starting from resting
-        if motor_state.data.value != ValveController.MotorState.RESTING.value:
-            logging.warning(self._instance_name + ': MOTOR BUSY, ABORTING')
+        if motor_state.data.value != ValveController.MotorState.RESTING:
+            logging.info(self._instance_name + ': MOTOR BUSY, ABORTING')
+            self.send_event(type="OPEN_ERROR", origin="self", extra_data={'errors':['MOTOR_BUSY']})
             return
 
         # Set to closing
-        motor_state.data.value = ValveController.MotorState.CLOSING.value
+        motor_state.data.value = ValveController.MotorState.CLOSING
 
         # Allow time to close (MOTOR_RUN_TIME_MEAN +- MOTOR_RUN_TIME_STDDEV)
         yield self._env.timeout(random.normalvariate(ValveController.MOTOR_RUN_TIME_MEAN, ValveController.MOTOR_RUN_TIME_STDDEV))
 
         # Occasionally force stall condition
         if random.randint(0, 100) <= ValveController.CHANCE_TO_STALL:
-            # Valve is stuck
-            valve_state.data.value = ValveController.ValveState.STUCK.value
-            logging.info(self._instance_name + ': VALVE STALLED')
+            # Set valve stuck
+            valve_state.data.value = ValveController.ValveState.STUCK
+            logging.info(self._instance_name + ': VALVE STUCK')
+            self.send_event(type="OPEN_ERROR", origin="self", extra_data={'errors':['VALVE_STUCK']})
+
+            self._env.timeout(self.STALL_TIME)
+
+            # Stop motor
+            motor_state.data.value = ValveController.MotorState.RESTING
+            return
+
+        # Stop motor
+        motor_state.data.value = ValveController.MotorState.RESTING
+
+        # Done
+        logging.info(self._instance_name + ': VALVE OPENED')
+        self.send_event(type="VALVE_OPENED", origin="self")
+
+    def close(self):
+        """Closes valve.
+
+        Must be called via simpy process (simpy.Environment.process()).
+        """
+        # Send start event
+        logger.info(self._instance_name + ': CLOSING VALVE')
+        self.send_event(type="VALVE_CLOSING", origin="self")
+
+        # Grab states
+        motor_state = self.get_state('motor')
+        valve_state = self.get_state('valve')
+
+        # Ensure valve not already closed
+        if valve_state.data.value == ValveController.ValveState.CLOSED:
+            logging.info(self._instance_name + ': VALVE ALREADY CLOSED')
+            self.send_event(type="VALVE_CLOSED", origin="self")
+            return
+
+        # Ensure motor starting from resting
+        if motor_state.data.value != ValveController.MotorState.RESTING:
+            logging.info(self._instance_name + ': MOTOR BUSY, ABORTING')
+            self.send_event(type="CLOSE_ERROR", origin="self", extra_data={'errors':['MOTOR_BUSY']})
+            return
+
+        # Set to closing
+        motor_state.data.value = ValveController.MotorState.CLOSING
+
+        # Allow time to close (MOTOR_RUN_TIME_MEAN +- MOTOR_RUN_TIME_STDDEV)
+        yield self._env.timeout(random.normalvariate(ValveController.MOTOR_RUN_TIME_MEAN, ValveController.MOTOR_RUN_TIME_STDDEV))
+
+        # Occasionally force stall condition
+        if random.randint(0, 100) <= ValveController.CHANCE_TO_STALL:
+            # Set valve stuck
+            valve_state.data.value = ValveController.ValveState.STUCK
+            logging.info(self._instance_name + ': VALVE STUCK')
+
+            self._env.timeout(self.STALL_TIME)
+
+            # Stop motor
+            motor_state.data.value = ValveController.MotorState.RESTING
             return
 
         # Stop motor
@@ -386,6 +448,7 @@ class ValveController(model.Device):
 
         # Done
         logging.info(self._instance_name + ': VALVE CLOSED')
+        self.send_event(type="VALVE_CLOSED", origin="self")
 
     def acknowledge_leak(self, time: int):
         logger.info(self._instance_name + ': LEAK DETECTED')
@@ -393,19 +456,12 @@ class ValveController(model.Device):
         # Set probe to wet
         self.get_state('probe1_wet').data.value = True
 
-        # Prep packet
-        packet = communication.Communicator.EventPacket(
-            # Packet()
-            sender=self._instance_name,
-            simulation_time=self._env.now,
-            realworld_time=str(datetime.datetime.now()),
+        # Send event
+        self.send_event(type="LEAK_DETECTED", origin="self")
 
-            # OperationPacket()
-            type=communication.Communicator.EventPacket.Type.LEAK_DETECTED,
-            data=json.dumps({
-                'cause': 'internal_probe'
-            })
-        )
+        # Close
+        self.close()
 
-        # Send
-        self.transmit(communicators.ip_network.IP_Network, packet)
+        # Open
+        self.open()
+

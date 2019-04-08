@@ -61,12 +61,12 @@ class Cloud_Functions(str, Enum):
 def call_function(name: str, data: dict):
     try:
         logger.info('Calling cloud function %s' % name)
-        logger.info('Sending data: %s' % data)
+        logger.debug('Sending data: %s' % data)
         r = requests.post(url=ENDPOINT.format(function_name=name), data=json.dumps(data), headers={'Content-type': 'application/json'})
     except Exception as e: # TODO: Handle specific exceptions
         logger.warn('Could not call cloud function (error: %s)' % str(e))
     else:
-        logger.info('Cloud function called, result: %s' % str(json.loads(r.content)['status']))
+        logger.info('Cloud function called, result: %s' % str(json.loads(r.content)))
 
 def process(packet: Communicator.Packet):
     """Parse raw message and call relevant cloud function.
