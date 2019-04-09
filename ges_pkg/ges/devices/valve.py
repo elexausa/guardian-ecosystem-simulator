@@ -396,6 +396,9 @@ class ValveController(model.Device):
         # Stop motor
         motor_state.data.value = ValveController.MotorState.RESTING
 
+        # Set valve state
+        valve_state.data.value = ValveController.ValveState.OPENED
+
         # Done
         logging.info(self._instance_name + ': VALVE OPENED')
         self.send_event(type="VALVE_OPENED", origin="self")
@@ -446,9 +449,15 @@ class ValveController(model.Device):
         # Stop motor
         motor_state.data.value = ValveController.MotorState.RESTING
 
+        # Set valve state
+        valve_state.data.value = ValveController.ValveState.CLOSED
+
         # Done
         logging.info(self._instance_name + ': VALVE CLOSED')
         self.send_event(type="VALVE_CLOSED", origin="self")
+
+        # Start valve open process
+        self._env.process(self.open())
 
     def acknowledge_leak(self, time: int):
         logger.info(self._instance_name + ': LEAK DETECTED')
@@ -458,10 +467,3 @@ class ValveController(model.Device):
 
         # Send event
         self.send_event(type="LEAK_DETECTED", origin="self")
-
-        # Close
-        self.close()
-
-        # Open
-        self.open()
-

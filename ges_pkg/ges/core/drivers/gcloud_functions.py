@@ -34,28 +34,30 @@ ENDPOINT = "https://us-central1-guardian-ecoystem-simulator.cloudfunctions.net/{
 
 class Cloud_Functions(str, Enum):
     FAMILY_ADD_CHILDREN = 'family_add_children'
-    FAMILY_ADD_GROUPS = 'family_add_groups'
     FAMILY_ADD_PERMISSIONS = 'family_add_permissions'
     FAMILY_ADD_USER = 'family_add_user'
     FAMILY_CREATE = 'family_create'
     FAMILY_DELETE = 'family_delete'
     FAMILY_DELETE_PERMISSIONS = 'family_delete_permissions'
-    FAMILY_REMOVE_GROUP = 'family_remove_group'
     FAMILY_REMOVE_CHILD = 'family_remove_child'
     FAMILY_REMOVE_USER = 'family_remove_user'
     FAMILY_SET_PARENT = 'family_set_parent'
+
     INACTIVE_SET_INACTIVE = 'inactive_set_inactive'
+
     MACHINE_CREATE = 'machine_create'
     MACHINE_DELETE = 'machine_delete'
     MACHINE_REGISTER_SETTING = 'machine_register_setting'
     MACHINE_REGISTER_STATE = 'machine_register_state'
     MACHINE_UPDATE_SETTING = 'machine_update_setting'
     MACHINE_UPDATE_STATE = 'machine_update_state'
+
     USER_CREATE = 'user_create'
     USER_DELETE = 'user_delete'
     USER_SET_EMAIL = 'user_set_email'
     USER_SET_FNAME = 'user_set_fname' # Set user first name
     USER_SET_LNAME = 'user_set_lname' # Set user last name
+
     EVENTS_CREATE = 'events_create'
 
 def call_function(name: str, data: dict):
@@ -66,7 +68,12 @@ def call_function(name: str, data: dict):
     except Exception as e: # TODO: Handle specific exceptions
         logger.warn('Could not call cloud function (error: %s)' % str(e))
     else:
-        logger.info('Cloud function called, result: %s' % str(json.loads(r.content)))
+        status = r.content['status']
+
+        if status == 'ok':
+            logger.info('Cloud function succeeded')
+        else:
+            logger.info('Cloud function failed, dump: %s' % str(r.content))
 
 def process(packet: Communicator.Packet):
     """Parse raw message and call relevant cloud function.
