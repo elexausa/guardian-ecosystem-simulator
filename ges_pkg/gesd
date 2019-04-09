@@ -43,12 +43,11 @@ from ges.devices import Cow, Calf
 # TODO: Move configuration out to config class - AB 03/12/2019
 
 # Logging
-# Format: [gesd,time,process,thread](level)filename->function: message
 logging.basicConfig(
     level=logging.INFO,
     format='[%(levelname)s,%(asctime)s,%(process)d,%(threadName)s](%(filename)s/%(funcName)s): %(message)s',
     handlers=[
-        logging.FileHandler(filename='test.log'),
+        logging.FileHandler(filename='history.log'),
         logging.StreamHandler()
     ]
 )
