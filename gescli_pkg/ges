@@ -19,182 +19,62 @@
 
 import click
 import logging
-import config
-import ges
-import udp_client
 import json
-import configparser
-
+import ges
 from enum import Enum
 
+# Utilities
+from util import config_helper
 
-##############
-## Commands ##
-##############
-
-LIST_ALL_DEVICES = {
-    "command": "list"
-}
-
-KILL = {
-    "command": "kill"
-}
-
-RUN = {
-    "command": "run"
-}
-
-SPAWN = {
-    "command": "spawn",
-    "type": None,
-    "count": 1
-}
+# Load command groups
+from commands.config import config
+from commands.data import data
+from commands.list import list
+from commands.runner import runner
+from commands.spawn import spawn
 
 ###################
 ## Configuration ##
 ###################
 
 # Logging
+LOG_FILE = 'history.log'
+
 logging.basicConfig(
-    level=logging.INFO,
-    format='[ges-cli,pid:%(process)d](%(levelname)s) %(message)s'
+    level=logging.DEBUG,
+    format='[%(levelname)s,%(asctime)s,%(process)d,%(threadName)s](%(filename)s/%(funcName)s): %(message)s',
+    handlers=[
+        logging.FileHandler(filename=LOG_FILE),
+        # logging.StreamHandler()
+    ]
 )
 
-# Information types for output text.
-InfoType = Enum("InfoType", "CONFIGURATION INFO")
-
-# Configuration
-CONFIG_FILE = "configuration.ini"
-
-
-##############################
-## Main click command group ##
-##############################
-
-def read_configuration():
-    """Reads the configuration file.
-    """
-
-    config = configparser.ConfigParser()
-    config.read(CONFIG_FILE)
-
-    ip = config["UDP"]["ip"]
-    port = config["UDP"]["port"]
-    print("[{info_type}] Currently pointing to {ip}:{port}.".format(info_type=InfoType.CONFIGURATION.name,
-                                                                   ip=ip,
-                                                                   port=port))
+#########################
+## Main command groups ##
+#########################
 
 @click.group()
-@click.version_option(version=config.version, prog_name='ges')
-def gescli():
-    """Primary click command group.
+@click.version_option(version=config_helper.version, prog_name='Guardian Ecosystem Simulator CLI')
+def cli():
+    """Guardian Ecosystem Simulator CLI
 
-    Sets up Click and houses all commands.
+    This command line interface provides control of the Guardian
+    Ecosystem Simulator (GES) daemon. The daemon must be started
+    and accessible over the local network.
     """
     pass
-
-def send_command(command):
-    """Sends a command.
-
-    Args:
-        command (dict): Command to be sent.
-    """
-
-    # Ignoring errors for now until I figure out why this function errors out after successfully sending a command.
-    try:
-        config = configparser.ConfigParser()
-        config.read(CONFIG_FILE)
-
-        ip = config["UDP"]["ip"]
-        port = config["UDP"]["port"]
-
-        udp_client.UDP().send(command=json.dumps(command),
-                              ip=ip,
-                              port=port)
-
-        print("[{info_type}] Sent command".format(info_type=InfoType.INFO.name))
-    except:
-        pass
-
-
-##################
-## CLI commands ##
-##################
-
-@click.command()
-@click.option("--ip", help="Daemon IP address.")
-@click.option("--port", help="Daemon port.")
-def update_address(ip, port):
-    """Updates the IP address and port GES CLI points to.
-    """
-    config = configparser.ConfigParser()
-    config.read(CONFIG_FILE)
-
-    if ip is not None:
-        config["UDP"]["IP"] = ip
-    if port is not None:
-        config["UDP"]["PORT"] = port
-
-    with open("configuration.ini", "w") as config_file:
-        config.write(config_file)
-
-    print("Updated IP address and port.")
-
-
-@click.command()
-def list_all_devices():
-    """Lists all devices.
-
-    Args:
-        command (str): Command to be sent.
-    """
-    send_command(command=LIST_ALL_DEVICES)
-
-@click.command()
-def kill():
-    """Kills the daemon.
-    """
-    send_command(command=KILL)
-
-@click.command()
-def run():
-    """Runs the daemon.
-    """
-    send_command(command=RUN)
-
-
-@click.command()
-@click.option("--type", required=True, help="Type of device to spawn.")
-@click.option("--count", help="Number of devices to spawn.")
-def spawn(type, count):
-    """Spawns device instances on the daemon.
-
-    Args:
-        type (str): Type of device to spawn.
-        count (int): Number of devices to spawn.
-    """
-
-    spawn = SPAWN
-    spawn["type"] = type
-
-    if count is not None:
-        spawn["count"] = count
-
-    spawn["count"] = int(spawn["count"])
-    send_command(spawn)
 
 ###############################################
 ## Register commands with main command group ##
 ###############################################
 
-gescli.add_command(update_address)
-gescli.add_command(list_all_devices)
-gescli.add_command(kill)
-gescli.add_command(run)
-gescli.add_command(spawn)
+cli.add_command(data)
+cli.add_command(list)
+cli.add_command(runner)
+cli.add_command(spawn)
+cli.add_command(config)
 
 # Run CLI
 if __name__ == '__main__':
-    read_configuration()
-
-    gescli()
+    config_helper.load()
+    cli()

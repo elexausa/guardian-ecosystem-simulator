@@ -17,13 +17,23 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import os
+import click
+import logging
 
-# Determine package location on host
-__location__ = os.path.realpath(os.path.join(os.getcwd(), os.path.dirname(__file__)))
+from . import Simulation_Commands
+from util import daemon_helper
 
-# Open version file
-version_file = open(os.path.join(__location__, 'VERSION'))
+# Define logger
+logger = logging.getLogger(__name__)
 
-# Get version number
-version = version_file.read().strip()
+@click.group()
+def runner():
+    pass
+
+@runner.command()
+def run():
+    daemon.send_command(command=Simulation_Commands.RUN)
+
+@runner.command()
+def kill():
+    daemon.send_command(command=Simulation_Commands.KILL)
