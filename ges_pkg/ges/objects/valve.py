@@ -36,15 +36,6 @@ logger = logging.getLogger(__name__)
 
 class Valve_Controller(machine.Machine):
     """Simulates a valve controller.
-
-    Attributes:
-        LEAK_DETECT_TIMEFRAME_MIN (int): Minimum amount of time (in simulation intervals) before a leak is detected.
-        LEAK_DETECT_TIMEFRAME_MAX (int): Maximum amount of time (in simulation intervals) before a leak is detected.
-        HEARTBEAT_PERIOD (int): Time (in simulation intervals) before a heartbeat packet is sent out.
-        PRECENT_CHANCE_TO_STALL (int): The percent chance the valve controller will stall when closing.
-        STALL_TIME (int): Amount of time (in simulation intervals) the valve controller is down if it stalls.
-        MotorState (Enum): All applicable motor states.
-        ValveState (Enum): All applicable valve states.
     """
 
     class MotorState(str, Enum):
@@ -57,8 +48,8 @@ class Valve_Controller(machine.Machine):
         def __repr__(self):
             return str(self.value)
 
-    class ValveState(str, Enum):
-        """Defines possible motor states.
+    class ValvePosition(str, Enum):
+        """Defines possible valve positions.
         """
         OPENED = 'OPENED'
         CLOSED = 'CLOSED'
@@ -74,20 +65,13 @@ class Valve_Controller(machine.Machine):
     ## Set class variables ##
     #########################
 
-    # Startup
-    STARTUP_TIME_MEAN = 5 # seconds
-    STARTUP_TIME_STDDEV = 1 # seconds
-
     # Heartbeat
     # HEARTBEAT_PERIOD = 1*60*60*12 # 12 hours -> seconds
     HEARTBEAT_PERIOD = 1*60*60 # 1 hour
-    # HEARTBEAT_PERIOD = 30 # 30 seconds
 
     # Internal detection
     LEAK_DETECTION_TIME_MEAN = 1*60*30 # 30 minutes
     LEAK_DETECTION_TIME_STDDEV = 1*60*5 # 5 minutes
-    # LEAK_DETECTION_TIME_MEAN = 30 # 30 seconds
-    # LEAK_DETECTION_TIME_STDDEV = 5 # 5 seconds
 
     # Motor open/close
     MOTOR_RUN_TIME_MEAN = 5 # seconds
@@ -96,6 +80,10 @@ class Valve_Controller(machine.Machine):
     # Stall
     CHANCE_TO_STALL = 5 # percent (1 - 100)
     STALL_TIME = 120 # Seconds
+
+    # Temperature
+    INITIAL_TEMPERATURE = 73.0 # Fahrenheit
+    TEMPERATURE_STANDARD_DEVIATION = 2 # +/- 2 degrees
 
     def __init__(self, env=None, comm_tunnels=None, instance_name=None):
         super().__init__(env=env, comm_tunnels=comm_tunnels, codename='tiddymun', instance_name=instance_name)
@@ -120,17 +108,8 @@ class Valve_Controller(machine.Machine):
             )
         )
 
-        # Time to wait before reacting to leak event
-        self.save_setting(
-            machine.Property(
-                name='close_delay',
-                description='Amount of time to wait (in seconds) before closing valve',
-                data=machine.Property.Data(
-                    type=machine.Property.Data.Type.UINT16,
-                    value=5
-                )
-            )
-        )
+        # Choose location
+        location = generate.location()
 
         # Latitudinal GPS coordinate
         self.save_setting(
@@ -139,7 +118,7 @@ class Valve_Controller(machine.Machine):
                 description='Latitudinal GPS coordinate',
                 data=machine.Property.Data(
                     type=machine.Property.Data.Type.FLOAT,
-                    value=5
+                    value=location.lat
                 )
             )
         )
@@ -151,7 +130,7 @@ class Valve_Controller(machine.Machine):
                 description='Longitudinal GPS coordinate',
                 data=machine.Property.Data(
                     type=machine.Property.Data.Type.FLOAT,
-                    value=5
+                    value=location.lon
                 )
             )
         )
@@ -159,42 +138,6 @@ class Valve_Controller(machine.Machine):
         ######################
         ## Initialize state ##
         ######################
-
-        # Valve opened/closed
-        self.save_state(
-            machine.Property(
-                name='valve',
-                description='State of valve as OPENED/CLOSED/STUCK',
-                data=machine.Property.Data(
-                    type=machine.Property.Data.Type.STRING,
-                    value=Valve_Controller.ValveState.OPENED
-                )
-            )
-        )
-
-        # Motor opening/closing/resting
-        self.save_state(
-            machine.Property(
-                name='motor',
-                description='State of motor as opening/closing/resting',
-                data=machine.Property.Data(
-                    type=machine.Property.Data.Type.STRING,
-                    value=Valve_Controller.MotorState.RESTING
-                )
-            )
-        )
-
-        # Realtime motor current draw
-        self.save_state(
-            machine.Property(
-                name='motor_current',
-                description='Current draw of motor (in Amps)',
-                data=machine.Property.Data(
-                    type=machine.Property.Data.Type.FLOAT,
-                    value=0.0
-                )
-            )
-        )
 
         # Firmware version
         self.save_state(
@@ -208,11 +151,59 @@ class Valve_Controller(machine.Machine):
             )
         )
 
-        # Probe1 wet true/false
+        # Temperature state
         self.save_state(
             machine.Property(
-                name='probe1_wet',
-                description='True if water detected at probe1',
+                name='temperature',
+                description='Ambient air temperature near the device (in Fahrenheit)',
+                data=machine.Property.Data(
+                    type=machine.Property.Data.Type.FLOAT,
+                    value=Valve_Controller.INITIAL_TEMPERATURE
+                )
+            )
+        )
+
+        # Valve opened/closed
+        self.save_state(
+            machine.Property(
+                name='valve_position',
+                description='Position of valve as OPENED/CLOSED/STUCK',
+                data=machine.Property.Data(
+                    type=machine.Property.Data.Type.STRING,
+                    value=Valve_Controller.ValvePosition.OPENED
+                )
+            )
+        )
+
+        # Motor opening/closing/resting
+        self.save_state(
+            machine.Property(
+                name='motor_state',
+                description='State of motor as opening/closing/resting',
+                data=machine.Property.Data(
+                    type=machine.Property.Data.Type.STRING,
+                    value=Valve_Controller.MotorState.RESTING
+                )
+            )
+        )
+
+        # Average motor current draw during operation
+        self.save_state(
+            machine.Property(
+                name='motor_current_avg',
+                description='Average current draw (in Amps) of motor during operation',
+                data=machine.Property.Data(
+                    type=machine.Property.Data.Type.FLOAT,
+                    value=0.0
+                )
+            )
+        )
+
+        # Probe wet true/false
+        self.save_state(
+            machine.Property(
+                name='probe',
+                description='True if water detected at water probe',
                 data=machine.Property.Data(
                     type=machine.Property.Data.Type.BOOLEAN,
                     value=False
@@ -223,41 +214,12 @@ class Valve_Controller(machine.Machine):
         # Leak detectors that are paired to the valve controller.
         self.leak_detectors = []
 
-        # Spawn simulation processes
+        # Spawn main process
         self._main_process = self._env.process(self.main_process())
 
     ###############
     ## Utilities ##
     ###############
-
-    def send_event(self, type: communicators.wan.EventType, origin: str = 'self', extra_data: dict = None):
-        # Prep data
-        data = {
-            "target": 'machine-{}'.format(str(self._metadata.serial_number)),
-            "type": type.name,
-            "origin": origin,
-            "timestamp": str(datetime.datetime.now()),
-            "data": extra_data
-        }
-
-        # Send operation
-        self.send_operation(communicators.wan.OperationType.EVENTS_CREATE, data=data)
-
-    def send_operation(self, type: communicators.wan.OperationType, data: dict):
-        # Prep packet
-        packet = communicators.wan.OperationPacket(
-            # Packet()
-            sender=self._instance_name,
-            simulation_time=self._env.now,
-            realworld_time=str(datetime.datetime.now()),
-
-            # EventPacket()
-            type=type,
-            data=data
-        )
-
-        # Send
-        self.transmit(communicators.wan.WAN, packet)
 
     def generate_serial(self):
         """Overrides super generator to force custom format.
@@ -296,19 +258,17 @@ class Valve_Controller(machine.Machine):
                 # Now powered
                 isPowered = True
 
-                logger.info('machine-{}: PLUGGED IN'.format(self._metadata.serial_number))
-
-                # Wait for startup to complete
-                yield self._env.timeout(random.normalvariate(Valve_Controller.STARTUP_TIME_MEAN, Valve_Controller.STARTUP_TIME_STDDEV))
-
-                # Success
-                logger.info('machine-{}: RUNNING'.format(self._metadata.serial_number))
+                logger.info('{}-{}: powered, creating in db...'.format(self._metadata.codename, self._metadata.serial_number))
 
                 # Send operation
                 self.send_operation(type=communicators.wan.OperationType.MACHINE_CREATE, data=self.to_dict())
 
                 # Allow operation to finish
-                yield self._env.timeout(2)
+                # TODO: implement callback
+                yield self._env.timeout(5)
+
+                # Success
+                logger.info('{}-{}: created!'.format(self._metadata.codename, self._metadata.serial_number))
 
                 # Start heartbeat
                 self._env.process(self.heartbeat_process())
@@ -322,33 +282,25 @@ class Valve_Controller(machine.Machine):
                 # Normal operation
                 yield self._env.timeout(random.randint(60, 300))
 
-                logger.info('machine-{}: beep'.format(self._metadata.serial_number))
+                # Update states
+                self.update_temperature()
+
+                logger.info('{}-{}: beep'.format(self._metadata.codename, self._metadata.serial_number))
 
     def heartbeat_process(self):
-        """Sends a heartbeat to show the valve controller is still online
-        and update cloud information.
+        """Sends a heartbeat message over WAN.
+
+        Valve Controllers sync also sync their settings with every heartbeat.
         """
         while True:
+            # Update states
+            self.update_temperature()
+
             # Send event
             self.send_event(type=communicators.wan.EventType.HEARTBEAT)
 
-            # Sync settings
-            for setting in self._settings:
-                data = {
-                    'machine_id': self._metadata.serial_number,
-                    'setting_name': setting.name,
-                    'setting_data': dataclasses.asdict(setting.data)
-                }
-                self.send_operation(type=communicators.wan.OperationType.MACHINE_UPDATE_SETTING, data=data)
-
-            # Sync states
-            for state in self._states:
-                data = {
-                    'machine_id': self._metadata.serial_number,
-                    'state_name': state.name,
-                    'state_data': dataclasses.asdict(state.data)
-                }
-                self.send_operation(type=communicators.wan.OperationType.MACHINE_UPDATE_STATE, data=data)
+            # Use opportunity to sync latest setting/state changes
+            self.sync_to_db()
 
             # Wait for next heartbeat
             yield self._env.timeout(self.get_setting('heartbeat_period').data.value)
@@ -372,6 +324,9 @@ class Valve_Controller(machine.Machine):
             # Dry probe!
             self.dry_probe()
 
+            # Use opportunity to sync latest setting/state changes
+            self.sync_to_db()
+
     def rf_listener_process(self):
         """Listens for leaks from "paired" leak detectors.
         """
@@ -379,41 +334,31 @@ class Valve_Controller(machine.Machine):
              # Wait for packet
             packet = yield self._rf_recv_pipe.get()
 
-            logger.info('machine-{}: radio packet received'.format(self._metadata.serial_number))
-            logger.debug('machine-{}: radio packet received: {}'.format(self._metadata.serial_number, packet))
+            # Get sender and serial number
+            sender = packet.sender
+            sender_serial_number = sender._metadata.serial_number
 
-            if packet.sent_by in self.leak_detectors:
-                # Sync leak detector settings
-                for setting in packet.sender._settings:
-                    data = {
-                        'machine_id': packet._metadata.serial_number,
-                        'setting_name': setting.name,
-                        'setting_data': dataclasses.asdict(setting.data)
-                    }
-                    self.send_operation(type=communicators.wan.OperationType.MACHINE_UPDATE_SETTING, data=data)
+            logger.info('{}-{}: radio packet received from {}'.format(self._metadata.codename, self._metadata.serial_number, sender_serial_number))
+            logger.debug('{}-{}: radio packet received from {}: {}'.format(self._metadata.codename, self._metadata.serial_number, sender_serial_number, packet))
 
-                # Sync leak detector states
-                for state in packet.sender._states:
-                    data = {
-                        'machine_id': packet._metadata.serial_number,
-                        'state_name': state.name,
-                        'state_data': dataclasses.asdict(state.data)
-                    }
-                    self.send_operation(type=communicators.wan.OperationType.MACHINE_UPDATE_STATE, data=data)
+            # Check is "paired"
+            if sender not in self.leak_detectors:
+                logger.info('{}-{}: not paired, radio packet dropped'.format(self._metadata.codename, self._metadata.serial_number))
+                continue
 
-                # Process message
-                if packet.msg == communicators.rf.RadioPacket.Message.WET:
-                    # Send event
-                    self.send_event(type=communicators.wan.EventType.LEAK_DETECTED, extra_data={'from': packet.sent_by})
+            # Process message
+            if packet.msg == communicators.rf.RadioPacket.Message.WET:
+                # Send event
+                self.send_event(type=communicators.wan.EventType.LEAK_DETECTED)
 
-                    # Start valve close process
-                    self._env.process(self.close())
-                elif packet.msg == communicators.rf.RadioPacket.Message.DRY:
-                    # Send event
-                    self.send_event(type=communicators.wan.EventType.LEAK_CLEARED, extra_data={'from': packet.sent_by})
+                # Start valve close process
+                self._env.process(self.close())
+            elif packet.msg == communicators.rf.RadioPacket.Message.DRY:
+                # Send event
+                self.send_event(type=communicators.wan.EventType.LEAK_CLEARED)
 
-                    # Start valve open process
-                    self._env.process(self.open())
+            # Use opportunity to sync latest setting/state changes
+            self.sync_to_db()
 
     ####################
     ## Device actions ##
@@ -425,22 +370,22 @@ class Valve_Controller(machine.Machine):
         Must be called via simpy process (simpy.Environment.process()).
         """
         # Send start of event
-        logger.info('machine-{}: opening valve'.format(self._metadata.serial_number))
+        logger.info('{}-{}: opening valve'.format(self._metadata.codename, self._metadata.serial_number))
         self.send_event(type=communicators.wan.EventType.VALVE_OPENING)
 
         # Grab states
-        motor_state = self.get_state('motor')
-        valve_state = self.get_state('valve')
+        motor_state = self.get_state('motor_state')
+        valve_state = self.get_state('valve_position')
 
         # Ensure valve not already open
-        if valve_state.data.value == Valve_Controller.ValveState.OPENED:
-            logger.info('machine-{}: valve already opened'.format(self._metadata.serial_number))
+        if valve_state.data.value == Valve_Controller.ValvePosition.OPENED:
+            logger.info('{}-{}: valve already opened'.format(self._metadata.codename, self._metadata.serial_number))
             self.send_event(type=communicators.wan.EventType.VALVE_OPENED)
             return
 
         # Ensure motor starting from resting
         if motor_state.data.value != Valve_Controller.MotorState.RESTING:
-            logger.info('machine-{}: motor busy, aborting'.format(self._metadata.serial_number))
+            logger.info('{}-{}: motor busy, aborting'.format(self._metadata.codename, self._metadata.serial_number))
             return
 
         # Update motor state
@@ -452,19 +397,19 @@ class Valve_Controller(machine.Machine):
         # Occasionally force stall condition
         if random.randint(0, 100) <= Valve_Controller.CHANCE_TO_STALL:
             # Update state
-            valve_state.data.value = Valve_Controller.ValveState.STUCK
+            valve_state.data.value = Valve_Controller.ValvePosition.STUCK
             motor_state.data.value = Valve_Controller.MotorState.RESTING
 
-            logger.info('machine-{}: valve stuck'.format(self._metadata.serial_number))
+            logger.info('{}-{}: valve stuck'.format(self._metadata.codename, self._metadata.serial_number))
             self.send_event(type=communicators.wan.EventType.VALVE_STUCK)
             return
 
         # Update states
         motor_state.data.value = Valve_Controller.MotorState.RESTING
-        valve_state.data.value = Valve_Controller.ValveState.OPENED
+        valve_state.data.value = Valve_Controller.ValvePosition.OPENED
 
         # Done
-        logger.info('machine-{}: valve opened'.format(self._metadata.serial_number))
+        logger.info('{}-{}: valve opened'.format(self._metadata.codename, self._metadata.serial_number))
         self.send_event(type=communicators.wan.EventType.VALVE_OPENED)
 
     def close(self):
@@ -473,22 +418,22 @@ class Valve_Controller(machine.Machine):
         Must be called via simpy process (simpy.Environment.process()).
         """
         # Send start of event
-        logger.info('machine-{}: closing valve'.format(self._metadata.serial_number))
+        logger.info('{}-{}: closing valve'.format(self._metadata.codename, self._metadata.serial_number))
         self.send_event(type=communicators.wan.EventType.VALVE_CLOSING)
 
         # Grab states
-        motor_state = self.get_state('motor')
-        valve_state = self.get_state('valve')
+        motor_state = self.get_state('motor_state')
+        valve_state = self.get_state('valve_position')
 
         # Ensure valve not already closed
-        if valve_state.data.value == Valve_Controller.ValveState.CLOSED:
-            logger.info('machine-{}: valve already closed'.format(self._metadata.serial_number))
+        if valve_state.data.value == Valve_Controller.ValvePosition.CLOSED:
+            logger.info('{}-{}: valve already closed'.format(self._metadata.codename, self._metadata.serial_number))
             self.send_event(type=communicators.wan.EventType.VALVE_CLOSED)
             return
 
         # Ensure motor starting from resting
         if motor_state.data.value != Valve_Controller.MotorState.RESTING:
-            logger.info('machine-{}: motor busy, aborted'.format(self._metadata.serial_number))
+            logger.info('{}-{}: motor busy, aborted'.format(self._metadata.codename, self._metadata.serial_number))
             return
 
         # Update motor state
@@ -500,26 +445,29 @@ class Valve_Controller(machine.Machine):
         # Occasionally force stall condition
         if random.randint(0, 100) <= Valve_Controller.CHANCE_TO_STALL:
             # Update states
-            valve_state.data.value = Valve_Controller.ValveState.STUCK
+            valve_state.data.value = Valve_Controller.ValvePosition.STUCK
             motor_state.data.value = Valve_Controller.MotorState.RESTING
 
-            logger.info('machine-{}: valve stuck'.format(self._metadata.serial_number))
+            logger.info('{}-{}: valve stuck'.format(self._metadata.codename, self._metadata.serial_number))
             self.send_event(type=communicators.wan.EventType.VALVE_STUCK)
             return
 
         # Update states
         motor_state.data.value = Valve_Controller.MotorState.RESTING
-        valve_state.data.value = Valve_Controller.ValveState.CLOSED
+        valve_state.data.value = Valve_Controller.ValvePosition.CLOSED
 
         # Done
-        logger.info('machine-{}: valve closed'.format(self._metadata.serial_number))
+        logger.info('{}-{}: valve closed'.format(self._metadata.codename, self._metadata.serial_number))
         self.send_event(type=communicators.wan.EventType.VALVE_CLOSED)
+
+        # Wait a lil bitty bit
+        yield self._env.timeout(random.randint(5, 10))
 
         # Start valve open process
         self._env.process(self.open())
 
     def wet_probe(self):
-        logger.info('machine-{}: probe1 is wet!'.format(self._metadata.serial_number))
+        logger.info('{}-{}: probe1 is wet!'.format(self._metadata.codename, self._metadata.serial_number))
 
         # Set probe to wet
         self.get_state('probe1_wet').data.value = True
@@ -528,7 +476,7 @@ class Valve_Controller(machine.Machine):
         self.send_event(type=communicators.wan.EventType.LEAK_DETECTED, extra_data={'from': 'probe1'})
 
     def dry_probe(self):
-        logger.info('machine-{}: probe1 is dry!'.format(self._metadata.serial_number))
+        logger.info('{}-{}: probe1 is dry!'.format(self._metadata.codename, self._metadata.serial_number))
 
         # Set probe to wet
         self.get_state('probe1_wet').data.value = False
@@ -536,3 +484,13 @@ class Valve_Controller(machine.Machine):
         # Send event
         self.send_event(type=communicators.wan.EventType.LEAK_CLEARED, extra_data={'from': 'probe1'})
 
+    def update_temperature(self):
+        """Generates normally distributed temperature around
+        current temperature with stddev of `TEMPERATURE_STANDARD_DEVIATION`.
+        """
+        # Randomly generate new temperature
+        new_temperature = random.gauss(self.get_state('temperature').data.value, Valve_Controller.TEMPERATURE_STANDARD_DEVIATION)
+
+        # Grab current temperature and update
+        temperature_state = self.get_state('temperature')
+        temperature_state.data.value = new_temperature

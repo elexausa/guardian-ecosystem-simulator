@@ -35,15 +35,7 @@ logger = logging.getLogger(__name__)
 
 
 class Leak_Detector(machine.Machine):
-    """ Simulates a leak detector
-
-    Attributes:
-        LEAK_DETECT_TIMEFRAME_MIN (int): Minimum amount of time (in simulation seconds) before a leak is detected.
-        LEAK_DETECT_TIMEFRAME_MAX (int): Maximum amount of time (in simulation seconds) before a leak is detected.
-        INITIAL_TEMPERATURE (double): The initial reading of internal temperature (in fahrenheit).
-        TEMPERATURE_STANDARD_DEVIATION (int): How far the temperature can stray from attribute INITIAL_TEMPERATURE.
-        INITIAL_BATTERY_VOLTAGE (int): The initial battery voltage (in millivolts).
-        HEARTBEAT_PERIOD (int): Time (in simulation seconds) before a heartbeat packet is sent out.
+    """Simulates a leak detector.
     """
 
     class WaterSensorState(str, Enum):
@@ -58,12 +50,19 @@ class Leak_Detector(machine.Machine):
     # Disable object `__dict__`
     __slots__ = ('_main_process', '_heartbeat_process', '_rf_recv_pipe', '_phys_recv_pipe')
 
-    LEAK_DETECT_TIMEFRAME_MIN = 1*60 # 1 minute
-    LEAK_DETECT_TIMEFRAME_MAX = 1*60*60 # 1 hour
+    # Heartbeat
+    HEARTBEAT_PERIOD = 1*60*60*12 # 12 hours -> seconds
+
+    # Internal detection
+    LEAK_DETECT_TIMEFRAME_MIN = 30 # 30 seconds
+    LEAK_DETECT_TIMEFRAME_MAX = 1*60*2 # 2 minutes
+
+    # Temperature
     INITIAL_TEMPERATURE = 73.0 # Fahrenheit
     TEMPERATURE_STANDARD_DEVIATION = 2 # +/- 2 degrees
+
+    # Battery
     INITIAL_BATTERY_VOLTAGE = 3600 # millivolts
-    HEARTBEAT_PERIOD = 1*60*60*12 # 12 hours -> seconds
 
     def __init__(self, env=None, comm_tunnels=None, instance_name=None):
         super().__init__(env=env, comm_tunnels=comm_tunnels, codename='ahurani', instance_name=instance_name)
@@ -88,14 +87,14 @@ class Leak_Detector(machine.Machine):
         ## Initialize state ##
         ######################
 
-        # Battery state
+        # Firmware version
         self.save_state(
             machine.Property(
-                name='battery_voltage',
-                description='Battery voltage (in millivolts)',
+                name='firmware_version',
+                description='Leak detector firmware version',
                 data=machine.Property.Data(
-                    type=machine.Property.Data.Type.UINT16,
-                    value=Leak_Detector.INITIAL_BATTERY_VOLTAGE
+                    type=machine.Property.Data.Type.STRING,
+                    value='1.0.0'
                 )
             )
         )
@@ -112,29 +111,48 @@ class Leak_Detector(machine.Machine):
             )
         )
 
-        # Spawn simulation processes
+        # Battery state
+        self.save_state(
+            machine.Property(
+                name='battery_voltage',
+                description='Battery voltage (in millivolts)',
+                data=machine.Property.Data(
+                    type=machine.Property.Data.Type.UINT16,
+                    value=Leak_Detector.INITIAL_BATTERY_VOLTAGE
+                )
+            )
+        )
+
+        # Top probe state
+        self.save_state(
+            machine.Property(
+                name='top_probe',
+                description='Top water probe state (true indicates wet)',
+                data=machine.Property.Data(
+                    type=machine.Property.Data.Type.BOOLEAN,
+                    value=False
+                )
+            )
+        )
+
+        # Bottom probe state
+        self.save_state(
+            machine.Property(
+                name='bottom_probe',
+                description='Bottom water probe state (true indicates wet)',
+                data=machine.Property.Data(
+                    type=machine.Property.Data.Type.BOOLEAN,
+                    value=False
+                )
+            )
+        )
+
+        # Spawn main process
         self._main_process = self._env.process(self.main_process())
 
     ###############
     ## Utilities ##
     ###############
-
-    def broadcast(self, message: communicators.rf.RadioPacket.Message):
-        # Prep packet
-        packet = communicators.rf.RadioPacket(
-            # Packet()
-            sender=self,
-            simulation_time=self._env.now,
-            realworld_time=str(datetime.datetime.now()),
-
-            # RadioPacket()
-            sent_by=self._metadata.mac_address,
-            msg=message,
-            dump=self.to_dict()
-        )
-
-        # Send
-        self.transmit(communicators.rf.RF, packet)
 
     def generate_serial(self):
         """Overrides super generator to force custom format.
@@ -170,12 +188,21 @@ class Leak_Detector(machine.Machine):
                 # Now powered
                 isPowered = True
 
-                # Update temperature
+                # Update states
                 self.update_temperature()
                 self.update_battery()
 
+                logger.info('{}-{}: powered, creating in db...'.format(self._metadata.codename, self._metadata.serial_number))
+
+                # Send operation
+                self.send_operation(type=communicators.wan.OperationType.MACHINE_CREATE, data=self.to_dict())
+
+                # Allow operation to finish
+                # TODO: implement callback
+                yield self._env.timeout(5)
+
                 # Success
-                logger.info('machine-{}: RUNNING'.format(self._metadata.serial_number))
+                logger.info('{}-{}: created!'.format(self._metadata.codename, self._metadata.serial_number))
 
                 # Start heartbeat
                 self._env.process(self.heartbeat_process())
@@ -183,21 +210,39 @@ class Leak_Detector(machine.Machine):
                 # Leak
                 yield self._env.timeout(random.randint(Leak_Detector.LEAK_DETECT_TIMEFRAME_MIN, Leak_Detector.LEAK_DETECT_TIMEFRAME_MAX))
 
+                logger.info('{}-{}: LEEEEEEEEEEEEEEEEEEEEEEEEEEEEAK!'.format(self._metadata.codename, self._metadata.serial_number))
+
                 # Send sensor wet
                 self.broadcast(message=communicators.rf.RadioPacket.Message.WET)
+                self.send_event(type=communicators.wan.EventType.SENSOR_WET)
 
-                logger.info("LEEEEEEEEEEEEEEEEEEEEEEEEEEEEAK!")
+                # Wait a bit then dry up
+                yield self._env.timeout(10)
+
+                # Send sensor dry
+                self.broadcast(message=communicators.rf.RadioPacket.Message.DRY)
+                self.send_event(type=communicators.wan.EventType.SENSOR_DRY)
+
+                logger.info('{}-{}: DRY!'.format(self._metadata.codename, self._metadata.serial_number))
+
+                # Sync to db
+                self.sync_to_db()
 
     def heartbeat_process(self):
-        """Sends a heartbeat to show the valve controller is still online
-        and update cloud information.
+        """Broadcasts a heartbeat message.
+
+        Also updates internal states including temperature and battery voltage.
         """
         while True:
-            # Update battery and temperature
-            self.update_battery()
+            # Update states
             self.update_temperature()
+            self.update_battery()
 
             self.broadcast(message=communicators.rf.RadioPacket.Message.HEARTBEAT)
+            self.send_event(type=communicators.wan.EventType.HEARTBEAT)
+
+            # Use opportunity to sync latest setting/state changes
+            self.sync_to_db()
 
             # Wait for next heartbeat
             yield self._env.timeout(self.get_setting('heartbeat_period').data.value)
@@ -227,7 +272,7 @@ class Leak_Detector(machine.Machine):
 
     def update_temperature(self):
         """Generates normally distributed temperature around
-        `NORMAL_TEMPERATURE` with stddev of `TEMPERATURE_STANDARD_DEVIATION`.
+        current temperature with stddev of `TEMPERATURE_STANDARD_DEVIATION`.
         """
         # Randomly generate new temperature
         new_temperature = random.gauss(self.get_state('temperature').data.value, Leak_Detector.TEMPERATURE_STANDARD_DEVIATION)

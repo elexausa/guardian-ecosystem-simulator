@@ -40,7 +40,7 @@ def send_command(command):
     try:
         # Send
         sock.sendto(command.encode(), (DAEMON_ADDRESS, int(DAEMON_PORT)))
-        
+
         logger.info('Command sent')
         logger.debug('Command sent: {}'.format(json.dumps(command)))
 

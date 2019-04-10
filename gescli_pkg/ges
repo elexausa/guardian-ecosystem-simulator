@@ -29,7 +29,7 @@ from util import config_helper
 # Load command groups
 from commands.config import config
 from commands.data import data
-from commands.leak_detector import leak_detector
+from commands.leakdetector import leakdetector
 from commands.simulation import simulation
 from commands.valve import valve
 
@@ -70,7 +70,7 @@ def cli():
 
 cli.add_command(config)
 cli.add_command(data)
-cli.add_command(leak_detector)
+cli.add_command(leakdetector)
 cli.add_command(simulation)
 cli.add_command(valve)
 

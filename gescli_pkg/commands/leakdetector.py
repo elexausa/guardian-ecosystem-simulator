@@ -28,40 +28,39 @@ from util import daemon_helper
 logger = logging.getLogger(__name__)
 
 @click.group()
-def leak_detector():
+def leakdetector():
     pass
 
-@leak_detector.command()
-@click.option('-c', '--count', default=1, help='Number of Leak Detectors to spawn.')
-def spawn(count):
+@leakdetector.command()
+@click.option('-n', '--number', default=1, help='Number of leak detectors to spawn.')
+def spawn(number):
     # Create command
-    command_str = DaemonCommand.SPAWN_LEAK_DETECTOR.format(count=count)
+    command_str = DaemonCommand.SPAWN_LEAK_DETECTOR.format(number=number)
 
     # Send
     ret = daemon_helper.send_command(command_str)
-    
+
     if 'status' in ret:
         if ret['status'] == 'ok':
-            print('Spawned {} leak detector(s)\n'.format(count))
+            print('Spawned {} leak detector(s)\n'.format(number))
             print('Metadata (Serial #, UUID):')
             for key, val in ret['data'].items():
                 print('  - ({}, {})'.format(key, val))
         else:
             print('Error spawning! Daemon returned:\n\n{}'.format(json.dumps(ret, indent=4)))
 
-@leak_detector.command()
-@click.option('--uuid', required=True, help='The UUID of the leak detector to pair.')
-@click.option('--parent', required=True, help='The UUID of the parent (valve controller) to pair.')
+@leakdetector.command()
+@click.option('--uuid', required=True, help='The UUID (mac address) of the leak detector to pair.')
+@click.option('--parent', required=True, help='The UUID (mac address) of the parent (valve controller) to pair.')
 def pair(uuid, parent):
 # Create command
     command_str = DaemonCommand.PAIR_LEAK_DETECTOR.format(uuid=uuid, parent=parent)
 
     # Send
     ret = daemon_helper.send_command(command_str)
-    
+
     if 'status' in ret:
         if ret['status'] == 'ok':
             print('Successfully paired leak detector')
         else:
             print('Error pairing! Daemon returned:\n\n{}'.format(json.dumps(ret, indent=4)))
- 

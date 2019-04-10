@@ -140,6 +140,7 @@ def parse_packet(packet: bytearray, sender: tuple):
     try:
         # TODO: Implement some sort of authentication here?
         # TODO: Add a preprocessor to validate packet?
+        global process
 
         # Attempt to decode and parse as JSON
         packet_json = json.loads(packet.decode('utf-8').replace("'", "\""))
@@ -164,7 +165,7 @@ def parse_packet(packet: bytearray, sender: tuple):
 
                 # Get from command
                 if 'parent_uuid' in packet_json:
-                    parent_uuid = packet_json['parent_uuid']               
+                    parent_uuid = packet_json['parent_uuid']
                 if 'child_uuid' in packet_json:
                     child_uuid = packet_json['child_uuid']
 
@@ -181,9 +182,13 @@ def parse_packet(packet: bytearray, sender: tuple):
 
                 # "Pair"
                 if parent_obj is None or child_obj is None:
-                    error_codes.append(response.Error.GENERIC)
+                    error_codes.append(response.Error.DOES_NOT_EXIST)
                 else:
                     parent_obj.leak_detectors.append(child_obj)
+
+                # Save parent if sim is running
+                if isinstance(process, multiprocessing.Process) and process.is_alive():
+                    parent_obj.sync_to_db()
 
                 # Create response
                 res = response.construct_response(error_codes=error_codes)
@@ -192,7 +197,7 @@ def parse_packet(packet: bytearray, sender: tuple):
 
                 # Return response
                 sock.sendto(json.dumps(res).encode(), sender)
-            
+
             if command == 'spawn_valve_controller':
                 # Defaults
                 count = 1
@@ -230,7 +235,7 @@ def parse_packet(packet: bytearray, sender: tuple):
                     if count > 100: count = 100
 
                 # Spawn objects
-                leak_detectors = [Leak_Detector(env=env, comm_tunnels=[rf_comm_tunnel, phys_comm_tunnel]) for _ in range(count)]
+                leak_detectors = [Leak_Detector(env=env, comm_tunnels=[rf_comm_tunnel, wan_comm_tunnel, phys_comm_tunnel]) for _ in range(count)]
 
                 # Add to objects
                 objects.extend(leak_detectors)
@@ -246,26 +251,45 @@ def parse_packet(packet: bytearray, sender: tuple):
 
                 # Return response
                 sock.sendto(json.dumps(res).encode(), sender)
-        
+
             if command == 'run':
-                until = None
+                # Defaults for optional parameters
+                time = None
 
-                if 'until' in packet_json:
-                    until = int(packet_json['until'])
+                # Return information
+                rdata = {
+                    'started_at': datetime.datetime.now().isoformat(),
+                    'time': -1 # represents no time limit
+                }
+                error_codes = []
 
-                global process
+                logging.info('starting simulation...')
 
-                if isinstance(process, multiprocessing.Process):
-                    # Already running
-                    if process.is_alive():
-                        logging.warning('simulation already running')
-                        return
+                if 'time' in packet_json:
+                    time = int(packet_json['time'])
+                    rdata['time'] = time
+
+                # Already running
+                if isinstance(process, multiprocessing.Process) and process.is_alive():
+                    logging.warning('simulation already running')
+                    error_codes.append(response.Error.SIMULATION_RUNNING)
 
                 # Create process
-                process = SimulationRunner(end_at=until)
+                # TODO: Add 'breakpoint' support for pausing simulation upon event occurance
+                process = SimulationRunner(time=time)
 
                 # Start 'er up
                 process.start()
+
+                logging.info('started!')
+
+                # Create default response
+                res = response.construct_response(data=rdata, error_codes=error_codes)
+
+                logging.info('sending response: {}'.format(res))
+
+                # Return response
+                sock.sendto(json.dumps(res).encode(), sender)
 
             if command == 'kill':
                 if isinstance(process, multiprocessing.Process) and process.is_alive():
@@ -276,9 +300,9 @@ def parse_packet(packet: bytearray, sender: tuple):
 
 
 class SimulationRunner(multiprocessing.Process):
-    def __init__(self, end_at=None):
+    def __init__(self, time=None):
         super().__init__(name='ges-proc-wrapper')
-        self._end_time = end_at
+        self._end_time = time
 
     def run(self):
         # Sync environment
@@ -291,11 +315,10 @@ class SimulationRunner(multiprocessing.Process):
             logging.warning('running killed or out of events...')
             env.run()
         elif isinstance(self._end_time, int):
-            logging.warning('running until simulation time %d...' % self._end_time)
+            logging.warning('running for {} seconds)...'.format(self._end_time))
             env.run(until=self._end_time)
 
-        logging.info('complete')
-
+        logging.info('simulation complete')
 
 if __name__ == "__main__":
     # Record start time

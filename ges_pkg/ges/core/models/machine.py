@@ -310,6 +310,23 @@ class Machine(object):
     ## Utilities ##
     ###############
 
+    def sync_to_db(self):
+        """Syncs local settings and states to the database.
+        """
+        logger.info('{}-{}: syncing to db...'.format(self._metadata.codename, self._metadata.serial_number))
+
+        # Sync settings
+        for setting in self._settings:
+            data = dict(machine_id=self._metadata.serial_number, setting_name=setting.name, setting_data=dataclasses.asdict(setting.data))
+            self.send_operation(type=communicators.wan.OperationType.MACHINE_UPDATE_SETTING, data=data)
+
+        # Sync states
+        for state in self._states:
+            data = dict(machine_id=self._metadata.serial_number, state_name=state.name, state_data=dataclasses.asdict(state.data))
+            self.send_operation(type=communicators.wan.OperationType.MACHINE_UPDATE_STATE, data=data)
+
+        logger.info('{}-{}: synced!'.format(self._metadata.codename, self._metadata.serial_number))
+
     def to_dict(self):
         """Returns device data as dict object."""
         # Build device data
@@ -366,6 +383,54 @@ class Machine(object):
                 return tunnel.get_output_pipe()
 
         raise RuntimeError('Communicator type (%s) not available' % type)
+
+    ###################
+    ## Communication ##
+    ###################
+
+    def send_event(self, type: communicators.wan.EventType, origin: str = 'self', extra_data: dict = None):
+        # Prep data
+        data = {
+            "target": 'machine-{}'.format(str(self._metadata.serial_number)),
+            "type": type.name,
+            "origin": origin,
+            "timestamp": str(datetime.datetime.now()),
+            "data": extra_data
+        }
+
+        # Send operation
+        self.send_operation(communicators.wan.OperationType.EVENTS_CREATE, data=data)
+
+    def send_operation(self, type: communicators.wan.OperationType, data: dict):
+        # Prep packet
+        packet = communicators.wan.OperationPacket(
+            # Packet()
+            sender=self._instance_name,
+            simulation_time=self._env.now,
+            realworld_time=str(datetime.datetime.now()),
+
+            # EventPacket()
+            type=type,
+            data=data
+        )
+
+        # Send
+        self.transmit(communicators.wan.WAN, packet)
+
+    def broadcast(self, message: communicators.rf.RadioPacket.Message):
+        # Prep packet
+        packet = communicators.rf.RadioPacket(
+            # Packet()
+            sender=self,
+            simulation_time=self._env.now,
+            realworld_time=str(datetime.datetime.now()),
+
+            # RadioPacket()
+            msg=message
+        )
+
+        # Send
+        self.transmit(communicators.rf.RF, packet)
 
     def transmit(self, type, packet: communication.BasePacket):
         """Transmits provided packet to the communicator type given.

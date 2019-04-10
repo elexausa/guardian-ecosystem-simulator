@@ -63,20 +63,18 @@ class Cloud_Functions(str, Enum):
 
 def call_function(name: str, data: dict):
     try:
-        logger.info('Calling cloud function {}'.format(name))
-        logger.debug('Calling cloud function {} with data: {}'.format(name, json.dumps(data)))
-
+        logger.debug('Calling {} with data: {}'.format(name, json.dumps(data)))
         r = requests.post(url=ENDPOINT.format(function_name=name), data=json.dumps(data), headers={'Content-type': 'application/json'})
     except Exception as e: # TODO: Handle specific exceptions
-        logger.warn('Could not call cloud function {} (error: {})'.format(name, str(e)))
+        logger.warn('Could not call {} (error: {})'.format(name, str(e)))
     else:
         ret = json.loads(r.content)
         status = ret['status']
 
         if status == 'ok':
-            logger.info('Cloud function {}:{} succeeded at {}'.format(name, ret['data']['updated'],  ret['data']['timestamp']))
+            logger.debug('{}({}) -> succeeded at {}'.format(name, ret['data']['updated'],  ret['data']['timestamp']))
         else:
-            logger.error('Cloud function {} failed, response: {}'.format(name, str(r.content.decode())))
+            logger.error('{} failed, response: {}'.format(name, str(r.content.decode())))
 
 def process(packet: BasePacket):
     """Parse raw message and call relevant cloud function.
@@ -151,7 +149,7 @@ def process(packet: BasePacket):
         if packet.type is wan.OperationType.EVENTS_CREATE:
             function_name = Cloud_Functions.EVENTS_CREATE.value
     else:
-        logger.info("Error processing packet, dropped")
+        logger.warn("Error processing packet, dropped")
         return
 
     # Set payload

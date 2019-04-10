@@ -32,19 +32,48 @@ def valve():
     pass
 
 @valve.command()
-@click.option('-c', '--count', default=1, help='Number of Valve Controllers to spawn.')
-def spawn(count):
+@click.option('-n', '--number', default=1, help='Number of valve controllers to spawn.')
+@click.option('--leakdetectors', default=0, help='Number of leak detectors to spawn and auto pair (per valve!).')
+def spawn(number, leakdetectors):
     # Create command
-    command_str = DaemonCommand.SPAWN_VALVE.format(count=count)
+    command_str = DaemonCommand.SPAWN_VALVE.format(number=number)
 
     # Send
     ret = daemon_helper.send_command(command_str)
-    
+
+    # Check status
     if 'status' in ret:
         if ret['status'] == 'ok':
-            print('Spawned {} valve controller(s)\n'.format(count))
-            print('Metadata (Serial #, UUID):')
-            for key, val in ret['data'].items():
-                print('  - ({}, {})'.format(key, val))
+            print('Spawned {} valve controller(s)\n'.format(number))
+            print('Metadata (serial #, UUID):')
+
+            for valve_key, valve_val in ret['data'].items():
+                print('  - {}, {}'.format(valve_key, valve_val))
+
+                # Spawn leak detectors
+                if leakdetectors > 0:
+                    command_str = DaemonCommand.SPAWN_LEAK_DETECTOR.format(number=leakdetectors)
+                    ret = daemon_helper.send_command(command_str)
+
+                    # Check status
+                    if 'status' in ret:
+                        if ret['status'] == 'ok':
+                            print('    > Spawned {} leak detector(s)'.format(leakdetectors))
+
+                            # Pair to valve
+                            for leakdetector_key, leakdetector_val in ret['data'].items():
+                                command_str = DaemonCommand.PAIR_LEAK_DETECTOR.format(uuid=leakdetector_val, parent=valve_val)
+                                ret = daemon_helper.send_command(command_str)
+
+                                # Good pair?
+                                if 'status' in ret:
+                                    if ret['status'] == 'ok':
+                                        print('        paired {} to {}'.format(leakdetector_key, valve_key))
+                                    else:
+                                        print('Error pairing! Daemon returned:\n\n{}'.format(json.dumps(ret, indent=4)))
+                        else:
+                            print('Error spawning! Daemon returned:\n\n{}'.format(json.dumps(ret, indent=4)))
         else:
             print('Error spawning! Daemon returned:\n\n{}'.format(json.dumps(ret, indent=4)))
+
+

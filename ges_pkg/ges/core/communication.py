@@ -77,7 +77,7 @@ class Communicator:
         """
         # Pipes populated?
         if not self._pipes:
-            raise RuntimeError('No output pipes configured, packet dropped')
+            logging.info('No output pipes configured, packet dropped')
 
         logger.debug("Sending packet to %d output pipes: %s" % (len(self._pipes), packet))
 

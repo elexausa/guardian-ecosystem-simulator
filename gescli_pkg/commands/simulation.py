@@ -31,9 +31,13 @@ def simulation():
     pass
 
 @simulation.command()
-def run():
+@click.option('-t', '--time', type=int, help="How long to run the simulation (in seconds)")
+def run(time):
     # Create command
-    command_str = DaemonCommand.RUN
+    if time is not None:
+        command_str = DaemonCommand.RUN_WITH_TIME_LIMIT.format(time=time)
+    else:
+        command_str = DaemonCommand.RUN
 
     # Send
     daemon_helper.send_command(command_str)

@@ -22,6 +22,8 @@ from enum import Enum
 
 class Error(str, Enum):
     GENERIC = "Generic error"
+    SIMULATION_RUNNING = "Simulation running"
+    DOES_NOT_EXIST = "Specified object does not exist"
 
 def construct_response(data: dict = None, error_codes: typing.List = None):
     """Constructs full JSON response packet from provided information.

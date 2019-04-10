@@ -45,8 +45,6 @@ class RadioPacket(BasePacket):
         DRY = auto()
 
     msg: Message
-    dump: dict
-    sent_by: str
 
 ##################
 ## Communicator ##

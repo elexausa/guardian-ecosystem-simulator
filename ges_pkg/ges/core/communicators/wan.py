@@ -106,6 +106,8 @@ class EventType(IntEnum):
     VALVE_CLOSING = auto()
     VALVE_CLOSED = auto()
     VALVE_STUCK = auto()
+    SENSOR_WET = auto()
+    SENSOR_DRY = auto()
 
 
 ##################
