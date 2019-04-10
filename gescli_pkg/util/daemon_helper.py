@@ -34,19 +34,26 @@ def send_command(command):
     # Define socket
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
+    # Default response
+    response = b'{}'
+
     try:
         # Send
         sock.sendto(command.encode(), (DAEMON_ADDRESS, int(DAEMON_PORT)))
-
+        
         logger.info('Command sent')
         logger.debug('Command sent: {}'.format(json.dumps(command)))
+
+        # Wait for response
+        response = sock.recv(4096)
+
+        logger.info('Response received')
+        logger.debug('Response received: {}'.format(response))
     except Exception as e:
         logger.error("Could not communicate with daemon! Check configuration. (err: %s)" % str(e))
-        # Failed
-        return False
     finally:
         # Close
         sock.close()
 
-        # Success
-        return True
+        # Return response
+        return json.loads(response.decode())

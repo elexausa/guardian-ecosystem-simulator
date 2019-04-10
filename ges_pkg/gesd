@@ -30,11 +30,7 @@ import random
 from ges.core.util import response, const
 from ges.core import communication
 from ges.core import communicators
-from ges.devices import Valve_Controller, Leak_Detector
-
-# For testing
-from ges.devices import Cow, Calf
-
+from ges.objects import Valve_Controller, Leak_Detector
 
 ###################
 ## Configuration ##
@@ -104,7 +100,7 @@ env = simpy.rt.RealtimeEnvironment()
 
 # Create communication tunnels
 rf_comm_tunnel = communicators.RF(env)
-ip_comm_tunnel = communicators.WAN(env)
+wan_comm_tunnel = communicators.WAN(env)
 phys_comm_tunnel = communicators.Physical(env)
 
 # Define list to store simulated object instances
@@ -159,58 +155,98 @@ def parse_packet(packet: bytearray, sender: tuple):
         if 'command' in packet_json:
             command = packet_json['command']
 
-            if command == 'spawn':
-                # Grab needed params
-                if 'type' in packet_json:
-                    obj_type = packet_json['type']
+            if command == 'pair_leak_detector':
+                # Initial
+                parent_uuid = None
+                child_uuid = None
+                parent_obj = None
+                child_obj = None
+
+                # Get from command
+                if 'parent_uuid' in packet_json:
+                    parent_uuid = packet_json['parent_uuid']               
+                if 'child_uuid' in packet_json:
+                    child_uuid = packet_json['child_uuid']
+
+                # Find parent and child
+                for obj in objects:
+                    if isinstance(obj, Valve_Controller):
+                        if obj.metadata['mac_address'] == parent_uuid:
+                            parent_obj = obj
+                    elif isinstance(obj, Leak_Detector):
+                        if obj.metadata['mac_address'] == child_uuid:
+                            child_obj = obj
+
+                error_codes = []
+
+                # "Pair"
+                if parent_obj is None or child_obj is None:
+                    error_codes.append(response.Error.GENERIC)
+                else:
+                    parent_obj.leak_detectors.append(child_obj)
+
+                # Create response
+                res = response.construct_response(error_codes=error_codes)
+
+                logging.info('sending response: {}'.format(res))
+
+                # Return response
+                sock.sendto(json.dumps(res).encode(), sender)
+            
+            if command == 'spawn_valve_controller':
+                # Defaults
+                count = 1
+
+                # Optionals
                 if 'count' in packet_json:
-                    obj_count = packet_json['count']
+                    count = packet_json['count']
+                    if count > 100: count = 100
 
-                # Spawned object type dependent
-                comm_tunnels = []
-                instance_name = None
+                # Spawn objects
+                valve_controllers = [Valve_Controller(env=env, comm_tunnels=[rf_comm_tunnel, wan_comm_tunnel, phys_comm_tunnel]) for _ in range(count)]
 
-                # Determine klass
-                if obj_type == 'valve':
-                    klass = Valve_Controller
-                    comm_tunnels.append(rf_comm_tunnel)
-                    comm_tunnels.append(ip_comm_tunnel)
-                elif obj_type == 'leak_detector':
-                    comm_tunnels.append(rf_comm_tunnel)
-                    klass = Leak_Detector
-                elif obj_type == 'cow':
-                    comm_tunnels.append(rf_comm_tunnel)
-                    comm_tunnels.append(ip_comm_tunnel)
-                    klass = Cow
-                elif obj_type == 'calf':
-                    comm_tunnels.append(rf_comm_tunnel)
-                    comm_tunnels.append(ip_comm_tunnel)
-                    klass = Calf
-                elif obj_type == 'user':
-                    comm_tunnels.append(phys_comm_tunnel)
-                    klass = User
+                # Add to objects
+                objects.extend(valve_controllers)
 
-                for _ in range(obj_count):
-                    # Get a name fo da' cows
-                    if obj_type in ('cow', 'calf'):
-                        instance_name = random.choice(const.LADY_NAMES)
+                rdata = {}
+                for vc in valve_controllers:
+                    rdata[vc._metadata.serial_number] = vc._metadata.mac_address
 
-                    # Spawn device
-                    obj = klass(env=env, instance_name=instance_name, comm_tunnels=comm_tunnels)
+                # Create response
+                res = response.construct_response(data=rdata)
 
-                    # Add to objects
-                    objects.append(obj)
+                logging.info('sending response: {}'.format(res))
 
-                logging.info('%d total objects spawned' % len(objects))
+                # Return response
+                sock.sendto(json.dumps(res).encode(), sender)
 
-                # Return ACK
-                sock.sendto(response.ACK, sender)
+            if command == 'spawn_leak_detector':
+                # Defaults
+                count = 1
 
-            if command == 'list':
-                logging.info('dumping all objects')
-                for object in objects:
-                    print(object.dump_json())
+                # Optionals
+                if 'count' in packet_json:
+                    count = packet_json['count']
+                    if count > 100: count = 100
 
+                # Spawn objects
+                leak_detectors = [Leak_Detector(env=env, comm_tunnels=[rf_comm_tunnel, phys_comm_tunnel]) for _ in range(count)]
+
+                # Add to objects
+                objects.extend(leak_detectors)
+
+                rdata = {}
+                for ld in leak_detectors:
+                    rdata[ld._metadata.serial_number] = ld._metadata.mac_address
+
+                # Create response
+                res = response.construct_response(data=rdata)
+
+                logging.info('sending response: {}'.format(res))
+
+                # Return response
+                sock.sendto(json.dumps(res).encode(), sender)
+        
             if command == 'run':
                 until = None
 
@@ -238,29 +274,6 @@ def parse_packet(packet: bytearray, sender: tuple):
                 else:
                     logging.info('simulation not running')
 
-            if command == "add_leak_detector":
-                if "valve_controller" in packet_json:
-                    valve_controller_name = packet_json["valve_controller"]
-                    for d in devices:
-                        if d._instance_name == valve_controller_name:
-                            new_leak_detector = Leak_Detector(env=env,
-                                                            comm_tunnels=[rf_comm_tunnel])
-                            d.add_leak_detector(leak_detector=new_leak_detector)
-                            # metadata['devices'].append(d.metadata)
-                            devices.append(new_leak_detector)
-                            break
-                else:
-                    raise RuntimeError("Unable to add leak detector => value \"valve_controller\" must be supplied.")
-
-            if command == "list_leak_detectors":
-                if "valve_controller" in packet_json:
-                    valve_controller_name = packet_json["valve_controller"]
-                    for d in devices:
-                        if d._instance_name == valve_controller_name:
-                            d.list_leak_detectors()
-                            break
-                else:
-                    raise RuntimeError("Unable to list leak detectors => value \"valve_controller\" must be supplied.")
 
 class SimulationRunner(multiprocessing.Process):
     def __init__(self, end_at=None):
