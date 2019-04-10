@@ -312,10 +312,10 @@ class Valve_Controller(machine.Machine):
 
                 # Start heartbeat
                 self._env.process(self.heartbeat_process())
-                
+
                 # Start internal leak detection
                 self._leak_process = self._env.process(self.leak_process())
-                
+
                 # Start listening for radio packets
                 self._rf_listener_process = self._env.process(self.rf_listener_process())
             else:
@@ -360,8 +360,8 @@ class Valve_Controller(machine.Machine):
             # Yield for define mean leak detection time +- the provided stddev
             yield self._env.timeout(random.normalvariate(Valve_Controller.LEAK_DETECTION_TIME_MEAN, Valve_Controller.LEAK_DETECTION_TIME_STDDEV))
 
-            # Acknowledge leak
-            self.wet_probe(self._env.now)
+            # Wet probe!
+            self.wet_probe()
 
             # Start valve close process
             self._env.process(self.close())
@@ -369,12 +369,18 @@ class Valve_Controller(machine.Machine):
             # Dry probe in 2-8 seconds
             yield self._env.timeout(random.randint(2, 8))
 
+            # Dry probe!
+            self.dry_probe()
+
     def rf_listener_process(self):
         """Listens for leaks from "paired" leak detectors.
         """
         while True:
              # Wait for packet
             packet = yield self._rf_recv_pipe.get()
+
+            logger.info('machine-{}: radio packet received'.format(self._metadata.serial_number))
+            logger.debug('machine-{}: radio packet received: {}'.format(self._metadata.serial_number, packet))
 
             if packet.sent_by in self.leak_detectors:
                 # Sync leak detector settings
@@ -399,7 +405,7 @@ class Valve_Controller(machine.Machine):
                 if packet.msg == communicators.rf.RadioPacket.Message.WET:
                     # Send event
                     self.send_event(type=communicators.wan.EventType.LEAK_DETECTED, extra_data={'from': packet.sent_by})
-                     
+
                     # Start valve close process
                     self._env.process(self.close())
                 elif packet.msg == communicators.rf.RadioPacket.Message.DRY:
@@ -512,7 +518,7 @@ class Valve_Controller(machine.Machine):
         # Start valve open process
         self._env.process(self.open())
 
-    def wet_probe(self, time: int):
+    def wet_probe(self):
         logger.info('machine-{}: probe1 is wet!'.format(self._metadata.serial_number))
 
         # Set probe to wet
@@ -521,7 +527,7 @@ class Valve_Controller(machine.Machine):
         # Send event
         self.send_event(type=communicators.wan.EventType.LEAK_DETECTED, extra_data={'from': 'probe1'})
 
-    def dry_probe(self, time: int):
+    def dry_probe(self):
         logger.info('machine-{}: probe1 is dry!'.format(self._metadata.serial_number))
 
         # Set probe to wet
