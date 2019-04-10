@@ -58,8 +58,8 @@ class Leak_Detector(machine.Machine):
     # Disable object `__dict__`
     __slots__ = ('_main_process', '_heartbeat_process', '_rf_recv_pipe', '_phys_recv_pipe')
 
-    LEAK_DETECT_TIMEFRAME_MIN = 1
-    LEAK_DETECT_TIMEFRAME_MAX = 5
+    LEAK_DETECT_TIMEFRAME_MIN = 1*60 # 1 minute
+    LEAK_DETECT_TIMEFRAME_MAX = 1*60*60 # 1 hour
     INITIAL_TEMPERATURE = 73.0 # Fahrenheit
     TEMPERATURE_STANDARD_DEVIATION = 2 # +/- 2 degrees
     INITIAL_BATTERY_VOLTAGE = 3600 # millivolts
@@ -74,35 +74,41 @@ class Leak_Detector(machine.Machine):
 
         # Heartbeat period
         self.save_setting(
-           model.Machine.Data(
+            machine.Property(
                 name='heartbeat_period',
-                type=model.Machine.Data.Type.UINT16,
-                value=Leak_Detector.HEARTBEAT_PERIOD,
-                description='Device heartbeat period (in seconds)'
+                description='Device heartbeat period (in seconds)',
+                data=machine.Property.Data(
+                    type=machine.Property.Data.Type.UINT16,
+                    value=Leak_Detector.HEARTBEAT_PERIOD
+                )
             )
         )
 
-        ########################
-        ## Setup device state ##
-        ########################
+        ######################
+        ## Initialize state ##
+        ######################
 
         # Battery state
         self.save_state(
-            model.Machine.Data(
+            machine.Property(
                 name='battery_voltage',
-                type=model.Machine.Data.Type.UINT16,
-                value=Leak_Detector.INITIAL_BATTERY_VOLTAGE,
-                description='Battery voltage (in millivolts)'
+                description='Battery voltage (in millivolts)',
+                data=machine.Property.Data(
+                    type=machine.Property.Data.Type.UINT16,
+                    value=Leak_Detector.INITIAL_BATTERY_VOLTAGE
+                )
             )
         )
 
         # Temperature state
         self.save_state(
-            model.Machine.Data(
+            machine.Property(
                 name='temperature',
-                type=model.Machine.Data.Type.FLOAT,
-                value=Leak_Detector.INITIAL_TEMPERATURE,
-                description='Ambient air temperature near the device (in Fahrenheit)'
+                description='Ambient air temperature near the device (in Fahrenheit)',
+                data=machine.Property.Data(
+                    type=machine.Property.Data.Type.FLOAT,
+                    value=Leak_Detector.INITIAL_TEMPERATURE
+                )
             )
         )
 
@@ -113,11 +119,11 @@ class Leak_Detector(machine.Machine):
     ## Utilities ##
     ###############
 
-    def transmit(self, message: communicators.rf.RadioPacket.Message):
+    def broadcast(self, message: communicators.rf.RadioPacket.Message):
         # Prep packet
         packet = communicators.rf.RadioPacket(
             # Packet()
-            sender=self._instance_name,
+            sender=self,
             simulation_time=self._env.now,
             realworld_time=str(datetime.datetime.now()),
 
@@ -147,19 +153,9 @@ class Leak_Detector(machine.Machine):
         """
         return "30AEA" + util.generate.string(size=7)
 
-    def heartbeat_process(self):
-        """Sends a heartbeat to show the valve controller is still online
-        and update cloud information.
-        """
-        while True:
-            # Update battery and temperature
-            self.update_battery()
-            self.update_temperature()
-
-            self.transmit(message=communicators.rf.RadioPacket.Message.HEARTBEAT)
-
-            # Wait for next heartbeat
-            yield self._env.timeout(self.get_setting('heartbeat_period').data.value)
+    ######################
+    ## Device processes ##
+    ######################
 
     def main_process(self):
         """Simulates Leak Detector operation.
@@ -179,7 +175,7 @@ class Leak_Detector(machine.Machine):
                 self.update_battery()
 
                 # Success
-                logger.info('machine-{}: RUNNING'.format(self.self._metadata.serial_number))
+                logger.info('machine-{}: RUNNING'.format(self._metadata.serial_number))
 
                 # Start heartbeat
                 self._env.process(self.heartbeat_process())
@@ -188,10 +184,27 @@ class Leak_Detector(machine.Machine):
                 yield self._env.timeout(random.randint(Leak_Detector.LEAK_DETECT_TIMEFRAME_MIN, Leak_Detector.LEAK_DETECT_TIMEFRAME_MAX))
 
                 # Send sensor wet
-                self.transmit(message=communicators.rf.RadioPacket.Message.WET)
+                self.broadcast(message=communicators.rf.RadioPacket.Message.WET)
 
                 logger.info("LEEEEEEEEEEEEEEEEEEEEEEEEEEEEAK!")
 
+    def heartbeat_process(self):
+        """Sends a heartbeat to show the valve controller is still online
+        and update cloud information.
+        """
+        while True:
+            # Update battery and temperature
+            self.update_battery()
+            self.update_temperature()
+
+            self.broadcast(message=communicators.rf.RadioPacket.Message.HEARTBEAT)
+
+            # Wait for next heartbeat
+            yield self._env.timeout(self.get_setting('heartbeat_period').data.value)
+
+    ####################
+    ## Device actions ##
+    ####################
 
     def update_battery(self):
         """Updates simulated device battery.
@@ -210,15 +223,15 @@ class Leak_Detector(machine.Machine):
 
         # Get battery voltage state and update
         battery_state = self.get_state('battery_voltage')
-        battery_state.value = new_voltage
+        battery_state.data.value = new_voltage
 
     def update_temperature(self):
         """Generates normally distributed temperature around
         `NORMAL_TEMPERATURE` with stddev of `TEMPERATURE_STANDARD_DEVIATION`.
         """
         # Randomly generate new temperature
-        new_temperature = random.gauss(self.get_state('temperature').value, Leak_Detector.TEMPERATURE_STANDARD_DEVIATION)
+        new_temperature = random.gauss(self.get_state('temperature').data.value, Leak_Detector.TEMPERATURE_STANDARD_DEVIATION)
 
         # Grab current temperature and update
         temperature_state = self.get_state('temperature')
-        temperature_state.value = new_temperature
+        temperature_state.data.value = new_temperature

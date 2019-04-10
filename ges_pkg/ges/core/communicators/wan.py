@@ -113,7 +113,7 @@ class EventType(IntEnum):
 ##################
 
 class WAN(Communicator, multiprocessing.Process):
-    """Simulated IP network.
+    """Simulated WAN network.
 
     - Forwards message to configured Guardian Cloud
     endpoint to provide SITL integration.
@@ -196,4 +196,4 @@ class WAN(Communicator, multiprocessing.Process):
                 # Start thread
                 client_handler.start()
         except (KeyboardInterrupt, SystemExit):
-            logging.warn('IP network server killed')
+            logging.warn('WAN server killed')

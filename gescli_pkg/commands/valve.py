@@ -18,6 +18,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import click
+import json
 import logging
 
 from . import DaemonCommand
@@ -27,21 +28,23 @@ from util import daemon_helper
 logger = logging.getLogger(__name__)
 
 @click.group()
-def runner():
+def valve():
     pass
 
-@runner.command()
-def run():
+@valve.command()
+@click.option('-c', '--count', default=1, help='Number of Valve Controllers to spawn.')
+def spawn(count):
     # Create command
-    command_str = DaemonCommand.RUN
+    command_str = DaemonCommand.SPAWN_VALVE.format(count=count)
 
     # Send
-    daemon_helper.send_command(command_str)
-
-@runner.command()
-def kill():
-    # Create command
-    command_str = DaemonCommand.KILL
-
-    # Send
-    daemon_helper.send_command(command_str)
+    ret = daemon_helper.send_command(command_str)
+    
+    if 'status' in ret:
+        if ret['status'] == 'ok':
+            print('Spawned {} valve controller(s)\n'.format(count))
+            print('Metadata (Serial #, UUID):')
+            for key, val in ret['data'].items():
+                print('  - ({}, {})'.format(key, val))
+        else:
+            print('Error spawning! Daemon returned:\n\n{}'.format(json.dumps(ret, indent=4)))

@@ -18,10 +18,10 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import click
-import logging
-import json
-import ges
 from enum import Enum
+import ges
+import json
+import logging
 
 # Utilities
 from util import config_helper
@@ -29,9 +29,9 @@ from util import config_helper
 # Load command groups
 from commands.config import config
 from commands.data import data
-from commands.list import list
-from commands.runner import runner
-from commands.spawn import spawn
+from commands.leak_detector import leak_detector
+from commands.simulation import simulation
+from commands.valve import valve
 
 ###################
 ## Configuration ##
@@ -68,11 +68,11 @@ def cli():
 ## Register commands with main command group ##
 ###############################################
 
-cli.add_command(data)
-cli.add_command(list)
-cli.add_command(runner)
-cli.add_command(spawn)
 cli.add_command(config)
+cli.add_command(data)
+cli.add_command(leak_detector)
+cli.add_command(simulation)
+cli.add_command(valve)
 
 # Run CLI
 if __name__ == '__main__':
