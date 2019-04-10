@@ -26,13 +26,14 @@ import dataclasses
 
 from ..core import communication
 from ..core import communicators
-from ..core import model
-from ..core.util import const
+from ..core import util
+from ..core.models import machine
 
+# Define logger
 logger = logging.getLogger(__name__)
 
 
-class Cow(model.Device):
+class Cow(machine.Machine):
     # Disable object `__dict__`
     __slots__ = ('_process')
 
@@ -45,9 +46,9 @@ class Cow(model.Device):
 
         # Heartbeat period
         self.save_setting(
-           model.Device.Data(
+            machine.Property(
                 name='heartbeat_period',
-                type=model.Device.Data.Type.UINT16,
+                type=machine.Machine.Data.Type.UINT16,
                 value=5, # 5 minutes
                 description='Device heartbeat period (in seconds)'
             )
@@ -79,7 +80,7 @@ class Cow(model.Device):
                 logger.info("%s woke up! \"MooooOOO!\" says the cow", self._instance_name)
 
                 # Prep packet
-                packet = communication.Communicator.Packet(
+                packet = communication.BasePacket(
                     sent_at=self._env.now,
                     created_at=str(datetime.datetime.now()),
                     sent_by=self._metadata.mac_address,
@@ -88,7 +89,7 @@ class Cow(model.Device):
                 )
 
                 # Send
-                self.transmit(communicators.ip_network.IP_Network, packet)
+                self.transmit(communicators.wan.WAN, packet)
             else:
                 # Wait for heartbeat to report info
                 yield self._env.timeout(self.get_setting('heartbeat_period').value)
@@ -99,7 +100,7 @@ class Cow(model.Device):
                 }
 
                 # Prep packet
-                packet = communication.Communicator.Packet(
+                packet = communication.BasePacket(
                     sent_at=self._env.now,
                     created_at=str(datetime.datetime.now()),
                     sent_by=self._metadata.mac_address,
@@ -108,10 +109,10 @@ class Cow(model.Device):
                 )
 
                 # Send
-                self.transmit(communicators.ip_network.IP_Network, packet)
+                self.transmit(communicators.wan.WAN, packet)
 
 
-class Calf(model.Device):
+class Calf(machine.Machine):
     # Disable object `__dict__`
     __slots__ = ('_process')
 
@@ -124,9 +125,9 @@ class Calf(model.Device):
 
         # Heartbeat period
         self.save_setting(
-           model.Device.Data(
+           machine.Machine.Data(
                 name='heartbeat_period',
-                type=model.Device.Data.Type.UINT16,
+                type=machine.Machine.Data.Type.UINT16,
                 value=60,
                 description='Device heartbeat period (in seconds)'
             )
@@ -159,7 +160,7 @@ class Calf(model.Device):
                 yield self._env.timeout(random.randint(1,500))
 
                 # Prep packet
-                packet = communication.Communicator.Packet(
+                packet = communication.BasePacket(
                     sent_at=self._env.now,
                     created_at=str(datetime.datetime.now()),
                     sent_by=self._metadata.mac_address,

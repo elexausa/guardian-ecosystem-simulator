@@ -20,7 +20,7 @@
 import click
 import logging
 
-from . import Simulation_Commands
+from . import DaemonCommand
 from util import daemon_helper
 
 # Define logger
@@ -32,8 +32,16 @@ def list():
 
 @list.command()
 def devices():
-    daemon.send_command(command=Simulation_Commands.LIST.format(type='devices'))
+    # Create command
+    command_str = DaemonCommand.LIST.format(type='devices')
+
+    # Send
+    daemon_helper.send_command(command_str)
 
 @list.command()
 def users():
-    daemon.send_command(command=Simulation_Commands.LIST.format(type='users'))
+    # Create command
+    command_str = DaemonCommand.LIST.format(type='users')
+
+    # Send
+    daemon_helper.send_command(command_str)

@@ -23,7 +23,8 @@ import json
 import logging
 import threading
 
-from ..communication import Communicator
+from ..communication import BasePacket
+from ..communicators import wan
 
 # Define logger
 logger = logging.getLogger(__name__)
@@ -62,20 +63,22 @@ class Cloud_Functions(str, Enum):
 
 def call_function(name: str, data: dict):
     try:
-        logger.info('Calling cloud function %s' % name)
-        logger.debug('Sending data: %s' % data)
+        logger.info('Calling cloud function {}'.format(name))
+        logger.debug('Calling cloud function {} with data: {}'.format(name, json.dumps(data)))
+
         r = requests.post(url=ENDPOINT.format(function_name=name), data=json.dumps(data), headers={'Content-type': 'application/json'})
     except Exception as e: # TODO: Handle specific exceptions
-        logger.warn('Could not call cloud function (error: %s)' % str(e))
+        logger.warn('Could not call cloud function {} (error: {})'.format(name, str(e)))
     else:
-        status = r.content['status']
+        ret = json.loads(r.content)
+        status = ret['status']
 
         if status == 'ok':
-            logger.info('Cloud function succeeded')
+            logger.info('Cloud function {}:{} succeeded at {}'.format(name, ret['data']['updated'],  ret['data']['timestamp']))
         else:
-            logger.info('Cloud function failed, dump: %s' % str(r.content))
+            logger.error('Cloud function {} failed, response: {}'.format(name, str(r.content.decode())))
 
-def process(packet: Communicator.Packet):
+def process(packet: BasePacket):
     """Parse raw message and call relevant cloud function.
     """
     logger.debug("Processing packet")
@@ -85,61 +88,68 @@ def process(packet: Communicator.Packet):
     payload = {}
 
     # Set function depending on type of operation
-    if isinstance(packet, Communicator.OperationPacket):
+    if isinstance(packet, wan.OperationPacket):
         ################
         ## Operations ##
         ################
 
         # Family
-        if packet.type is Communicator.OperationPacket.Type.FAMILY_ADD_CHILDREN:
+        if packet.type is wan.OperationType.FAMILY_ADD_CHILDREN:
             function_name = Cloud_Functions.FAMILY_ADD_CHILDREN.value
-        if packet.type is Communicator.OperationPacket.Type.FAMILY_ADD_GROUPS:
+        if packet.type is wan.OperationType.FAMILY_ADD_GROUPS:
             function_name = Cloud_Functions.FAMILY_ADD_GROUPS.value
-        if packet.type is Communicator.OperationPacket.Type.FAMILY_ADD_PERMISSIONS:
+        if packet.type is wan.OperationType.FAMILY_ADD_PERMISSIONS:
             function_name = Cloud_Functions.FAMILY_ADD_PERMISSIONS.value
-        if packet.type is Communicator.OperationPacket.Type.FAMILY_ADD_USER:
+        if packet.type is wan.OperationType.FAMILY_ADD_USER:
             function_name = Cloud_Functions.FAMILY_ADD_USER.value
-        if packet.type is Communicator.OperationPacket.Type.FAMILY_CREATE:
+        if packet.type is wan.OperationType.FAMILY_CREATE:
             function_name = Cloud_Functions.FAMILY_CREATE.value
-        if packet.type is Communicator.OperationPacket.Type.FAMILY_REMOVE_GROUP:
+        if packet.type is wan.OperationType.FAMILY_REMOVE_GROUP:
             function_name = Cloud_Functions.FAMILY_REMOVE_GROUP.value
-        if packet.type is Communicator.OperationPacket.Type.FAMILY_DELETE_PERMISSIONS:
+        if packet.type is wan.OperationType.FAMILY_DELETE_PERMISSIONS:
             function_name = Cloud_Functions.FAMILY_DELETE_PERMISSIONS.value
-        if packet.type is Communicator.OperationPacket.Type.FAMILY_REMOVE_USER:
+        if packet.type is wan.OperationType.FAMILY_REMOVE_USER:
             function_name = Cloud_Functions.FAMILY_REMOVE_USER.value
-        if packet.type is Communicator.OperationPacket.Type.FAMILY_REMOVE_CHILD:
+        if packet.type is wan.OperationType.FAMILY_REMOVE_CHILD:
             function_name = Cloud_Functions.FAMILY_REMOVE_CHILD.value
-        if packet.type is Communicator.OperationPacket.Type.FAMILY_SET_PARENT:
+        if packet.type is wan.OperationType.FAMILY_SET_PARENT:
             function_name = Cloud_Functions.FAMILY_SET_PARENT.value
 
         # Inactive
-        if packet.type is Communicator.OperationPacket.Type.INACTIVE_SET_INACTIVE:
+        if packet.type is wan.OperationType.INACTIVE_SET_INACTIVE:
             function_name = Cloud_Functions.INACTIVE_SET_INACTIVE.value
 
         # Machine
-        if packet.type is Communicator.OperationPacket.Type.MACHINE_CREATE:
+        if packet.type is wan.OperationType.MACHINE_CREATE:
             function_name = Cloud_Functions.MACHINE_CREATE.value
-        if packet.type is Communicator.OperationPacket.Type.MACHINE_DELETE:
+        if packet.type is wan.OperationType.MACHINE_DELETE:
             function_name = Cloud_Functions.MACHINE_DELETE.value
-        if packet.type is Communicator.OperationPacket.Type.MACHINE_REGISTER_SETTING:
+
+        if packet.type is wan.OperationType.MACHINE_REGISTER_SETTING:
             function_name = Cloud_Functions.MACHINE_REGISTER_SETTING.value
-        if packet.type is Communicator.OperationPacket.Type.MACHINE_REGISTER_STATE:
+        if packet.type is wan.OperationType.MACHINE_UPDATE_SETTING:
+            function_name = Cloud_Functions.MACHINE_UPDATE_SETTING.value
+
+        if packet.type is wan.OperationType.MACHINE_REGISTER_STATE:
             function_name = Cloud_Functions.MACHINE_REGISTER_STATE.value
+        if packet.type is wan.OperationType.MACHINE_UPDATE_STATE:
+            function_name = Cloud_Functions.MACHINE_UPDATE_STATE.value
 
         # User
-        if packet.type is Communicator.OperationPacket.Type.USER_CREATE:
+        if packet.type is wan.OperationType.USER_CREATE:
             function_name = Cloud_Functions.USER_CREATE.value
-        if packet.type is Communicator.OperationPacket.Type.USER_DELETE:
+        if packet.type is wan.OperationType.USER_DELETE:
             function_name = Cloud_Functions.USER_DELETE.value
-        if packet.type is Communicator.OperationPacket.Type.USER_SET_EMAIL:
+        if packet.type is wan.OperationType.USER_SET_EMAIL:
             function_name = Cloud_Functions.USER_SET_EMAIL.value
-        if packet.type is Communicator.OperationPacket.Type.USER_SET_FNAME:
+        if packet.type is wan.OperationType.USER_SET_FNAME:
             function_name = Cloud_Functions.USER_SET_FNAME.value
-        if packet.type is Communicator.OperationPacket.Type.USER_SET_LNAME:
+        if packet.type is wan.OperationType.USER_SET_LNAME:
             function_name = Cloud_Functions.USER_SET_LNAME.value
 
-    elif isinstance(packet, Communicator.EventPacket):
-        function_name = Cloud_Functions.EVENTS_CREATE.value
+        # Events
+        if packet.type is wan.OperationType.EVENTS_CREATE:
+            function_name = Cloud_Functions.EVENTS_CREATE.value
     else:
         logger.info("Error processing packet, dropped")
         return

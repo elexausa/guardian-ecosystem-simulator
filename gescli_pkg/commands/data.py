@@ -20,7 +20,7 @@
 import click
 import logging
 
-from . import Simulation_Commands
+from . import DaemonCommand
 from util import daemon_helper
 
 # Define logger

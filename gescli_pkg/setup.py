@@ -35,7 +35,7 @@ setuptools.setup(
     author="Alex Bennett",
     author_email="abennett@elexausa.com",
     description="Guardian IoT ecosystem simulator CLI",
-    long_description="CLI for control of guardian-ecosystem-simulator-daemon.",
+    long_description="CLI for control of guardian-ecosystem-simulator-daemon_helper.",
     url="https://github.com/elexausa/guardian-ecosystem-simulator",
     packages=setuptools.find_packages(),
     install_requires=[

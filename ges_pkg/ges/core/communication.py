@@ -17,7 +17,6 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from enum import IntEnum
 import typing
 import dataclasses
 import datetime
@@ -25,9 +24,23 @@ import string
 import json
 import simpy
 import logging
+from enum import IntEnum
 
 # Define logger
 logger = logging.getLogger(__name__)
+
+
+@dataclasses.dataclass
+class BasePacket:
+    """Generic communicator packet.
+
+    Requires sender, simulation time, realworld
+    time, and the data to send.
+    """
+    sender: str
+    simulation_time: int
+    realworld_time: str
+
 
 class Communicator:
     """Enables a process to perform many-to-many communication
@@ -38,65 +51,6 @@ class Communicator:
     """
 
     __slots__ = ('_env', '_capacity', '_pipes')
-
-
-    @dataclasses.dataclass
-    class Packet:
-        """Generic communicator packet.
-
-        Requires sender, simulation time, realworld
-        time, and the data to send.
-        """
-        sender: str
-        simulation_time: int
-        realworld_time: str = str(datetime.datetime.now())
-
-    @dataclasses.dataclass
-    class OperationPacket(Packet):
-        class Type(IntEnum):
-            UNKNOWN = 0
-            # CREATE_MACHINE = 1
-            # DELETE_MACHINE = 2
-            FAMILY_ADD_CHILDREN = 1
-            FAMILY_ADD_GROUPS = 2
-            FAMILY_ADD_PERMISSIONS = 3
-            FAMILY_ADD_USER = 4
-            FAMILY_CREATE = 5
-            FAMILY_DELETE = 6
-            FAMILY_DELETE_PERMISSIONS = 7
-            FAMILY_REMOVE_CHILD = 8
-            FAMILY_REMOVE_USER = 9
-            FAMILY_REMOVE_GROUP = 10
-            FAMILY_SET_PARENT = 11
-
-            INACTIVE_SET_INACTIVE = 12
-
-            MACHINE_CREATE = 13
-            MACHINE_DELETE = 14
-            MACHINE_REGISTER_SETTING = 15
-            MACHINE_REGISTER_STATE = 16
-            MACHINE_UPDATE_SETTING = 17
-            MACHINE_UPDATE_STATE = 18
-
-            USER_CREATE = 19
-            USER_DELETE = 20
-            USER_SET_EMAIL = 21
-            USER_SET_FNAME = 22
-            USER_SET_LNAME = 23
-
-        type: Type = Type.UNKNOWN
-        data: dict = typing.Dict
-
-    @dataclasses.dataclass
-    class EventPacket(Packet):
-        class Type(IntEnum):
-            UNKNOWN = 0
-            HEARTBEAT = 1
-            LEAK_DETECTED = 2
-            LEAK_CLEARED = 3
-
-        type: Type = Type.UNKNOWN
-        data: dict = typing.Dict
 
     def __init__(self, env: simpy.core.BaseEnvironment, capacity=simpy.core.Infinity):
         # Set environment

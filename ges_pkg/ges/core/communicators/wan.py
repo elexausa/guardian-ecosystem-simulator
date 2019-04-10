@@ -26,9 +26,10 @@ import json
 import logging
 import socket
 import simpy
-from enum import Enum
+import typing
+from enum import Enum, IntEnum, auto
 
-from ..communication import Communicator
+from ..communication import Communicator, BasePacket
 from ..drivers import gcloud_functions
 
 ###################
@@ -52,7 +53,66 @@ server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server.bind((SERVER_IP, SERVER_PORT))
 server.listen()
 
-class IP_Network(Communicator, multiprocessing.Process):
+##################
+## Packet types ##
+##################
+
+class OperationType(IntEnum):
+    UNKNOWN = auto()
+
+    FAMILY_ADD_CHILDREN = auto()
+    FAMILY_ADD_GROUPS = auto()
+    FAMILY_ADD_PERMISSIONS = auto()
+    FAMILY_ADD_USER = auto()
+    FAMILY_CREATE = auto()
+    FAMILY_DELETE = auto()
+    FAMILY_DELETE_PERMISSIONS = auto()
+    FAMILY_REMOVE_CHILD = auto()
+    FAMILY_REMOVE_USER = auto()
+    FAMILY_REMOVE_GROUP = auto()
+    FAMILY_SET_PARENT = auto()
+
+    INACTIVE_SET_INACTIVE = auto()
+
+    MACHINE_CREATE = auto()
+    MACHINE_DELETE = auto()
+    MACHINE_REGISTER_SETTING = auto()
+    MACHINE_REGISTER_STATE = auto()
+    MACHINE_UPDATE_SETTING = auto()
+    MACHINE_UPDATE_STATE = auto()
+
+    USER_CREATE = auto()
+    USER_DELETE = auto()
+    USER_SET_EMAIL = auto()
+    USER_SET_FNAME = auto()
+    USER_SET_LNAME = auto()
+
+    EVENTS_CREATE = auto()
+
+
+@dataclasses.dataclass
+class OperationPacket(BasePacket):
+    type: OperationType = OperationType.UNKNOWN
+    data: dict = typing.Dict
+
+
+class EventType(IntEnum):
+    UNKNOWN = auto()
+    HEARTBEAT = auto()
+    LEAK_DETECTED = auto()
+    LEAK_CLEARED = auto()
+    VALVE_OPENING = auto()
+    VALVE_OPENED = auto()
+    VALVE_CLOSING = auto()
+    VALVE_CLOSED = auto()
+    VALVE_STUCK = auto()
+
+
+##################
+## Communicator ##
+##################
+
+class WAN(Communicator, multiprocessing.Process):
     """Simulated IP network.
 
     - Forwards message to configured Guardian Cloud
@@ -61,7 +121,7 @@ class IP_Network(Communicator, multiprocessing.Process):
     """
 
     def __init__(self, env):
-        """Initializes IP_Network
+        """Initializes WAN
 
         Args:
             env (simpy.core.BaseEnvironment): simpy environment instance
@@ -69,12 +129,12 @@ class IP_Network(Communicator, multiprocessing.Process):
         Communicator.__init__(self, env)
         multiprocessing.Process.__init__(self, name='ges-ip-network')
 
-        logging.info('Starting IP_Network communicator')
+        logging.info('Starting WAN communicator')
 
         # Immediately start self process
         self.start()
 
-    def send(self, packet: Communicator.Packet):
+    def send(self, packet: BasePacket):
         """Preproccesses packet and performs relevant
         Cloud Function calls then forwards packet to
         super().send_raw().
@@ -91,7 +151,7 @@ class IP_Network(Communicator, multiprocessing.Process):
     def handle_client_connection(self, client_socket):
         """Handles `client_socket`.
 
-        Receives request and forwards data to local IP_Network
+        Receives request and forwards data to local WAN
         for processing by any attached device instances.
 
         Also responds to request with acknowledgment.

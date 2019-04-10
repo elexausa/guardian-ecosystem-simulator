@@ -19,6 +19,7 @@
 
 import logging
 import socket
+import json
 
 # Define logger
 logger = logging.getLogger(__name__)
@@ -35,13 +36,12 @@ def send_command(command):
 
     try:
         # Send
-        sock.sendto(json.dumps(command).encode(), (DAEMON_ADDRESS, int(DAEMON_PORT)))
+        sock.sendto(command.encode(), (DAEMON_ADDRESS, int(DAEMON_PORT)))
 
         logger.info('Command sent')
         logger.debug('Command sent: {}'.format(json.dumps(command)))
-    except:
-        logger.error("Could not communicate with daemon! Check configuration.")
-
+    except Exception as e:
+        logger.error("Could not communicate with daemon! Check configuration. (err: %s)" % str(e))
         # Failed
         return False
     finally:

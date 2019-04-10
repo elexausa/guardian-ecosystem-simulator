@@ -20,7 +20,7 @@
 import click
 import logging
 
-from . import Simulation_Commands
+from . import DaemonCommand
 from util import daemon_helper
 
 # Define logger
@@ -32,8 +32,16 @@ def runner():
 
 @runner.command()
 def run():
-    daemon.send_command(command=Simulation_Commands.RUN)
+    # Create command
+    command_str = DaemonCommand.RUN
+
+    # Send
+    daemon_helper.send_command(command_str)
 
 @runner.command()
 def kill():
-    daemon.send_command(command=Simulation_Commands.KILL)
+    # Create command
+    command_str = DaemonCommand.KILL
+
+    # Send
+    daemon_helper.send_command(command_str)

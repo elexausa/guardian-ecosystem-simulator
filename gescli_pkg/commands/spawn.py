@@ -20,7 +20,7 @@
 import click
 import logging
 
-from . import Simulation_Commands
+from . import DaemonCommand
 from util import daemon_helper
 
 # Define logger
@@ -32,9 +32,9 @@ def spawn():
 
 @spawn.command()
 @click.option('-c', '--count', default=1, help='Number of Valve Controllers to spawn.')
-def valve(type, count):
+def valve(count):
     # Create command
-    command_str = Commands.SPAWN.format(type=type, count=count, data=None)
+    command_str = DaemonCommand.SPAWN.format(type="valve", count=count, data=None)
 
     # Send
-    daemon.send_command(spawn)
+    daemon_helper.send_command(command_str)

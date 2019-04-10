@@ -36,23 +36,21 @@ logger = logging.getLogger(__name__)
 ##################
 
 @dataclasses.dataclass
-class RadioPacket(BasePacket):
+class PhysicalInteractionPacket(BasePacket):
 
-    class Message(IntEnum):
-        HEARTBEAT = auto()
-        MOVED = auto()
-        WET = auto()
-        DRY = auto()
+    class Type(IntEnum):
+        KICK = auto()
+        PRESS_BUTTON = auto()
+        MOVE = auto()
 
-    msg: Message
-    dump: dict
-    sent_by: str
+    type: Type = Type.KICK
+    data: dict = typing.Dict
 
 ##################
 ## Communicator ##
 ##################
 
-class RF(Communicator):
+class Physical(Communicator):
     """Simulated RF network.
 
     Inherits from communicator base type.
@@ -61,7 +59,7 @@ class RF(Communicator):
     def __init__(self, env):
         super().__init__(env)
 
-    def send(self, packet: BasePacket):
+    def interact(self, packet: PhysicalInteractionPacket):
         """Passes packet to super().send_raw().
 
         More functionality can be added here to create a more
