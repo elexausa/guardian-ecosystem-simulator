@@ -51,12 +51,11 @@ class Leak_Detector(machine.Machine):
     __slots__ = ('_main_process', '_heartbeat_process', '_rf_recv_pipe', '_phys_recv_pipe')
 
     # Heartbeat
-    HEARTBEAT_PERIOD = 1*60*60*12 # 12 hours -> seconds
+    HEARTBEAT_PERIOD = 1*60*60*1 # 1 hours -> seconds
 
     # Internal detection
-    LEAK_DETECT_TIMEFRAME_MIN = 30 # 1 minute
-    LEAK_DETECT_TIMEFRAME_MAX = 60 # 60 minutes
-    # LEAK_DETECT_TIMEFRAME_MAX = 1*60*60 # 60 minutes
+    LEAK_DETECT_TIMEFRAME_MIN = 60 # 1 minute
+    LEAK_DETECT_TIMEFRAME_MAX = 1*60*60 # 60 minutes
 
     # Temperature
     INITIAL_TEMPERATURE = 73.0 # Fahrenheit

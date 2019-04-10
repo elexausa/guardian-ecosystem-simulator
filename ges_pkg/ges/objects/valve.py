@@ -66,8 +66,7 @@ class Valve_Controller(machine.Machine):
     #########################
 
     # Heartbeat
-    # HEARTBEAT_PERIOD = 1*60*60*12 # 12 hours -> seconds
-    HEARTBEAT_PERIOD = 1*60*60 # 1 hour
+    HEARTBEAT_PERIOD = 1*60*60*1 # 1 hours -> seconds
 
     # Internal detection
     LEAK_DETECTION_TIME_MEAN = 1*60*30 # 30 minutes
@@ -402,6 +401,10 @@ class Valve_Controller(machine.Machine):
 
             logger.info('{}-{}: valve stuck'.format(self._metadata.codename, self._metadata.serial_number))
             self.send_event(type=communicators.wan.EventType.VALVE_STUCK)
+
+            # Stall for a bit
+            yield self._env.timeout(Valve_Controller.STALL_TIME)
+
             return
 
         # Update states
@@ -450,6 +453,10 @@ class Valve_Controller(machine.Machine):
 
             logger.info('{}-{}: valve stuck'.format(self._metadata.codename, self._metadata.serial_number))
             self.send_event(type=communicators.wan.EventType.VALVE_STUCK)
+
+            # Stall for a bit
+            yield self._env.timeout(Valve_Controller.STALL_TIME)
+
             return
 
         # Update states
