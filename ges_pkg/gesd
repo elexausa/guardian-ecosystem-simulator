@@ -30,7 +30,7 @@ import random
 from ges.core.util import response, const
 from ges.core import communication
 from ges.core import communicators
-from ges.devices import ValveController, Leak_Detector
+from ges.devices import Valve_Controller, Leak_Detector
 
 # For testing
 from ges.devices import Cow, Calf
@@ -104,10 +104,11 @@ env = simpy.rt.RealtimeEnvironment()
 
 # Create communication tunnels
 rf_comm_tunnel = communicators.RF(env)
-ip_comm_tunnel = communicators.IP_Network(env)
+ip_comm_tunnel = communicators.WAN(env)
+phys_comm_tunnel = communicators.Physical(env)
 
-# Define devices list
-devices = []
+# Define list to store simulated object instances
+objects = []
 
 # Simulator process
 process = None
@@ -161,58 +162,54 @@ def parse_packet(packet: bytearray, sender: tuple):
             if command == 'spawn':
                 # Grab needed params
                 if 'type' in packet_json:
-                    d_type = packet_json['type']
+                    obj_type = packet_json['type']
                 if 'count' in packet_json:
-                    d_count = packet_json['count']
+                    obj_count = packet_json['count']
 
-                # Device type dependent
+                # Spawned object type dependent
                 comm_tunnels = []
                 instance_name = None
 
                 # Determine klass
-                if d_type == 'valve':
-                    klass = ValveController
+                if obj_type == 'valve':
+                    klass = Valve_Controller
                     comm_tunnels.append(rf_comm_tunnel)
                     comm_tunnels.append(ip_comm_tunnel)
-                elif d_type == 'leak_detector':
+                elif obj_type == 'leak_detector':
                     comm_tunnels.append(rf_comm_tunnel)
                     klass = Leak_Detector
-                elif d_type == 'cow':
+                elif obj_type == 'cow':
                     comm_tunnels.append(rf_comm_tunnel)
                     comm_tunnels.append(ip_comm_tunnel)
                     klass = Cow
-                elif d_type == 'calf':
+                elif obj_type == 'calf':
                     comm_tunnels.append(rf_comm_tunnel)
                     comm_tunnels.append(ip_comm_tunnel)
                     klass = Calf
+                elif obj_type == 'user':
+                    comm_tunnels.append(phys_comm_tunnel)
+                    klass = User
 
-                # Create list to collect metadata of spawned devices
-                metadata = {'devices': []}
-
-                for _ in range(d_count):
-                    # Get a name
-                    if d_type in ('cow', 'calf'):
+                for _ in range(obj_count):
+                    # Get a name fo da' cows
+                    if obj_type in ('cow', 'calf'):
                         instance_name = random.choice(const.LADY_NAMES)
 
                     # Spawn device
-                    # FIXME: this needs work to properly setup communication tunnels
-                    d = klass(env=env, instance_name=instance_name, comm_tunnels=comm_tunnels)
+                    obj = klass(env=env, instance_name=instance_name, comm_tunnels=comm_tunnels)
 
-                    # Store metadata
-                    metadata['devices'].append(d.metadata)
+                    # Add to objects
+                    objects.append(obj)
 
-                    # Add to devices
-                    devices.append(d)
-
-                logging.info('%d total devices spawned' % len(devices))
+                logging.info('%d total objects spawned' % len(objects))
 
                 # Return ACK
                 sock.sendto(response.ACK, sender)
 
             if command == 'list':
-                logging.info('dumping all devices')
-                for device in devices:
-                    print(device.dump_json())
+                logging.info('dumping all objects')
+                for object in objects:
+                    print(object.dump_json())
 
             if command == 'run':
                 until = None

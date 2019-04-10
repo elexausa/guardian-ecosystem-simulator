@@ -27,9 +27,9 @@ import simpy
 import logging
 import typing
 
-from . import util
-from . import communication
-from . import communicators
+from .. import util
+from .. import communication
+from .. import communicators
 
 # Define logger
 logger = logging.getLogger(__name__)
@@ -47,8 +47,6 @@ class Property:
     :type description: str
     :type data: :class:`Property.Data`
     """
-
-
     @dataclasses.dataclass
     class Data:
         """Convenient class for storing cross-platform
@@ -74,15 +72,7 @@ class Property:
             FLOAT = 'float'
             STRING = 'string'
 
-            def __str__(self):
-                """Override __str__ to provide enum value.
-
-                :returns: Enum value.
-                :rtype: str
-                """
-                return str(self.value)
-
-        type: str = Type.UNKNOWN.value
+        type: str = Type.UNKNOWN
         value: object = None
 
         ###############
@@ -114,21 +104,22 @@ class Property:
         return dataclasses.asdict(self)
 
 
-class Device(object):
+@dataclasses.dataclass
+class Metadata:
+    """Frozen dataclass used to store immutable
+    device information created upon generation of
+    Metadata instance.
+    """
+    codename: str = 'unknown'
+    serial_number: str = 'unknown'
+    programmed_on: str = 'unknown'
+    mac_address: str = 'unknown'
+
+
+class Machine(object):
 
     SERIAL_NUMBER_LENGTH = 16
     MAC_ADDRESS_LENGTH = 12
-
-    @dataclasses.dataclass
-    class Metadata:
-        """Frozen dataclass used to store immutable
-        device information created upon generation of
-        Metadata instance.
-        """
-        codename: str = 'unknown'
-        serial_number: str = 'unknown'
-        programmed_on: str = 'unknown'
-        mac_address: str = 'unknown'
 
     # Define slots to override `__dict__` and restrict dynamic class modification
     __slots__ = ('_env', '_instance_name', '_metadata', '_settings', '_states', '_comm_tunnels')
@@ -141,8 +132,17 @@ class Device(object):
         else:
             self._env = env
 
-        # Generate generic `metadata`
-        self._metadata = Device.Metadata(
+        # Create communication tunnels list
+        self._comm_tunnels = []
+
+        # Define generic settings for all compliant devices
+        self._settings = []
+
+        # Define generic state for all compliant devices
+        self._states = []
+
+        # Generate default `metadata`
+        self._metadata = Metadata(
             codename=codename,
             serial_number=self.generate_serial(),
             programmed_on=str(datetime.datetime.now()),
@@ -159,10 +159,7 @@ class Device(object):
         else:
             # Set generic instance name from generated `mac_address`
             # TODO: move format out to configuration
-            self._instance_name = 'Device-' + self._metadata.mac_address[-4:]
-
-        # Create communication tunnels list
-        self._comm_tunnels = []
+            self._instance_name = 'machine-' + self._metadata.serial_number
 
         # Store tunnels
         if isinstance(comm_tunnels, list):
@@ -170,9 +167,7 @@ class Device(object):
                 if isinstance(tnl, communication.Communicator):
                     self._comm_tunnels.append(tnl)
 
-        # Define generic settings for all compliant devices
-        self._settings = []
-
+        # Add default heartbeat setting
         self.save_setting(
             Property(
                 name='heartbeat_period',
@@ -184,9 +179,7 @@ class Device(object):
             )
         )
 
-        # Define generic state for all compliant devices
-        self._states = []
-
+        # Add default firmware version state
         self.save_state(
             Property(
                 name='firmware_version',
@@ -198,6 +191,22 @@ class Device(object):
             )
         )
 
+    ############################
+    ## Simulation entry point ##
+    ############################
+
+    def main_process(self):
+        """
+        Should be overridden by implementation and accurately
+        portray transient device operation.
+        """
+        # todo: implement custom exceptions
+        raise Exception('run() must be overridden by subclass!')
+
+    ###################
+    ## Internal data ##
+    ###################
+
     @property
     def metadata(self):
         """Returns all device metadata as dict"""
@@ -206,12 +215,7 @@ class Device(object):
     @property
     def settings(self):
         """Returns all device settings as dict"""
-        return dataclasses.asdict(self._settings)
-
-    @property
-    def states(self):
-        """Returns all device states as dict"""
-        return dataclasses.asdict(self._states)
+        return [dataclasses.asdict(setting) for setting in self._settings]
 
     def get_setting(self, name: str):
         """Searches for and returns the specified setting.
@@ -226,7 +230,7 @@ class Device(object):
             RuntimeError: Raised if setting cannot be located
 
         Returns:
-            Device.Data: The dataclass with matching name
+            Machine.Data: The dataclass with matching name
         """
         # Attempt to locate setting in this nasty loop
         for setting in self._settings:
@@ -244,7 +248,7 @@ class Device(object):
         will be appended.
 
         Args:
-            setting (Device.Data): Setting data to save
+            setting (Machine.Data): Setting data to save
         """
         # Remove setting if it already exists
         for _setting in self._settings:
@@ -254,6 +258,11 @@ class Device(object):
 
         # Append setting
         self._settings.append(setting)
+
+    @property
+    def states(self):
+        """Returns all device states as dict"""
+        return [dataclasses.asdict(state) for state in self._states]
 
     def get_state(self, name: str):
         """Searches for and returns the specified state.
@@ -268,7 +277,7 @@ class Device(object):
             RuntimeError: Raised if state cannot be located
 
         Returns:
-            Device.Data: The dataclass with matching name
+            Machine.Data: The dataclass with matching name
         """
         # Attempt to locate state
         for _state in self._states:
@@ -286,7 +295,7 @@ class Device(object):
         will be appended.
 
         Args:
-            state (Device.Data): State data to save
+            state (Machine.Data): State data to save
         """
         # Attempt to locate and update state if it already exists
         for _state in self._states:
@@ -297,13 +306,9 @@ class Device(object):
         # Append setting
         self._states.append(state)
 
-    def run(self):
-        """
-        Should be overridden by implementation and accurately
-        portray transient device operation.
-        """
-        # todo: implement custom exceptions
-        raise Exception('run() must be overridden by subclass!')
+    ###############
+    ## Utilities ##
+    ###############
 
     def to_dict(self):
         """Returns device data as dict object."""
@@ -321,20 +326,19 @@ class Device(object):
         """
         return json.dumps(self.to_dict(), indent=indent, sort_keys=True)
 
-
     def generate_serial(self):
         """Should be overridden by implementation and be made
         to generate realistic serial numbers.
         """
         # Return a random string
-        return util.generate.string(size=Device.SERIAL_NUMBER_LENGTH)
+        return util.generate.string(size=Machine.SERIAL_NUMBER_LENGTH)
 
     def generate_mac_addr(self):
         """Should be overridden by implementation and be made
         to generate realistic MAC addresses.
         """
         # Return a random string
-        return util.generate.string(size=Device.MAC_ADDRESS_LENGTH)
+        return util.generate.string(size=Machine.MAC_ADDRESS_LENGTH)
 
     def get_communicator_recv_pipe(self, type):
         """Returns a Communicator recieve pipe.
@@ -363,12 +367,12 @@ class Device(object):
 
         raise RuntimeError('Communicator type (%s) not available' % type)
 
-    def transmit(self, type, packet: communication.Communicator.Packet):
+    def transmit(self, type, packet: communication.BasePacket):
         """Transmits provided packet to the communicator type given.
 
         Args:
             type (Communicator subclass): Must be type of Communicator subclasses
-            packet (communication.Communicator.Packet): Packet dataclass
+            packet (communication.BasePacket): Packet dataclass
                 to send.
 
         Raises:
