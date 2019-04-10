@@ -460,26 +460,27 @@ class Valve_Controller(machine.Machine):
         logger.info('{}-{}: valve closed'.format(self._metadata.codename, self._metadata.serial_number))
         self.send_event(type=communicators.wan.EventType.VALVE_CLOSED)
 
-        # Wait a lil bitty bit
-        yield self._env.timeout(random.randint(5, 10))
+        # How long will it last...
+        # NOTE: This generates an inverse exponentially distributed timeout between 1 - 30 seconds
+        yield self._env.timeout(math.ceil(30 / random.expovariate(1/10)))
 
         # Start valve open process
         self._env.process(self.open())
 
     def wet_probe(self):
-        logger.info('{}-{}: probe1 is wet!'.format(self._metadata.codename, self._metadata.serial_number))
+        logger.info('{}-{}: probe is wet!'.format(self._metadata.codename, self._metadata.serial_number))
 
         # Set probe to wet
-        self.get_state('probe1_wet').data.value = True
+        self.get_state('probe').data.value = True
 
         # Send event
         self.send_event(type=communicators.wan.EventType.LEAK_DETECTED, extra_data={'from': 'probe1'})
 
     def dry_probe(self):
-        logger.info('{}-{}: probe1 is dry!'.format(self._metadata.codename, self._metadata.serial_number))
+        logger.info('{}-{}: probe is dry!'.format(self._metadata.codename, self._metadata.serial_number))
 
         # Set probe to wet
-        self.get_state('probe1_wet').data.value = False
+        self.get_state('probe').data.value = False
 
         # Send event
         self.send_event(type=communicators.wan.EventType.LEAK_CLEARED, extra_data={'from': 'probe1'})

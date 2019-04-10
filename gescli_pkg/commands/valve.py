@@ -33,7 +33,7 @@ def valve():
 
 @valve.command()
 @click.option('-n', '--number', default=1, help='Number of valve controllers to spawn.')
-@click.option('--leakdetectors', default=0, help='Number of leak detectors to spawn and auto pair (per valve!).')
+@click.option('-ld', '--leakdetectors', default=0, help='Number of leak detectors to spawn and auto pair (per valve!).')
 def spawn(number, leakdetectors):
     # Create command
     command_str = DaemonCommand.SPAWN_VALVE.format(number=number)
