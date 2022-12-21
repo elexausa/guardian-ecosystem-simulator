@@ -131,7 +131,7 @@ class WAN(Communicator, multiprocessing.Process):
         Communicator.__init__(self, env)
         multiprocessing.Process.__init__(self, name='ges-ip-network')
 
-        logging.info('Starting WAN communicator')
+        logging.debug('starting WAN communicator')
 
         # Immediately start self process
         self.start()
@@ -163,7 +163,7 @@ class WAN(Communicator, multiprocessing.Process):
         """
         # Receive client data
         request = client_socket.recv(1024)
-        logging.info('Received {}'.format(request))
+        logging.info('received {}'.format(request))
 
         # Pass to super
         # TODO: Forward socket for responding - AB 03/12/2019
@@ -185,9 +185,12 @@ class WAN(Communicator, multiprocessing.Process):
         try:
             while True:
                 # Wait for and accept next connection
-                client_socket, address = server.accept()
+                try:
+                    client_socket, address = server.accept()
+                except:
+                    raise
 
-                logging.info('Accepted connection from {}:{}'.format(address[0], address[1]))
+                logging.info('accepted connection from {}:{}'.format(address[0], address[1]))
 
                 # Create handler thread
                 client_handler = threading.Thread(
@@ -197,5 +200,5 @@ class WAN(Communicator, multiprocessing.Process):
 
                 # Start thread
                 client_handler.start()
-        except (KeyboardInterrupt, SystemExit):
-            logging.warn('WAN server killed')
+        except Exception as e:
+            logging.warn('WAN server killed (reason: {})'.format(str(e)))

@@ -51,11 +51,11 @@ class Leak_Detector(machine.Machine):
     __slots__ = ('_main_process', '_heartbeat_process', '_rf_recv_pipe', '_phys_recv_pipe')
 
     # Heartbeat
-    HEARTBEAT_PERIOD = 1*60*60*12 # 12 hours -> seconds
+    HEARTBEAT_PERIOD = 1*60*60*1 # 1 hours -> seconds
 
     # Internal detection
-    LEAK_DETECT_TIMEFRAME_MIN = 30 # 30 seconds
-    LEAK_DETECT_TIMEFRAME_MAX = 1*60*2 # 2 minutes
+    LEAK_DETECT_TIMEFRAME_MIN = 60 # 1 minute
+    LEAK_DETECT_TIMEFRAME_MAX = 1*60*60 # 60 minutes
 
     # Temperature
     INITIAL_TEMPERATURE = 73.0 # Fahrenheit
@@ -212,12 +212,21 @@ class Leak_Detector(machine.Machine):
 
                 logger.info('{}-{}: LEEEEEEEEEEEEEEEEEEEEEEEEEEEEAK!'.format(self._metadata.codename, self._metadata.serial_number))
 
+                # Choose probe
+                probe_state = random.choice([self.get_state('top_probe'), self.get_state('bottom_probe')])
+
+                # Probe wet
+                probe_state.data.value = True
+
                 # Send sensor wet
                 self.broadcast(message=communicators.rf.RadioPacket.Message.WET)
                 self.send_event(type=communicators.wan.EventType.SENSOR_WET)
 
                 # Wait a bit then dry up
                 yield self._env.timeout(10)
+
+                # Probe wet
+                probe_state.data.value = False
 
                 # Send sensor dry
                 self.broadcast(message=communicators.rf.RadioPacket.Message.DRY)

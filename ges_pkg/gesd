@@ -109,7 +109,7 @@ objects = []
 # Simulator process
 process = None
 
-def menu():
+def listen():
     """Listens for commands on UDP socket.
 
     Listens for incoming data on the UDP socket
@@ -121,13 +121,14 @@ def menu():
     """
     while True:
         # Wait for data
-        data, clientaddr = sock.recvfrom(1024)
+        data, clientaddr = sock.recvfrom(4096)
 
         # Data recieved, process
-        logging.info('Packet received (%d bytes from %s:%d)' % (len(data), clientaddr[0], clientaddr[1]))
+        logging.info('packet received (%d bytes from %s:%d)' % (len(data), clientaddr[0], clientaddr[1]))
 
         # Receive and parse
         parse_packet(data, clientaddr)
+
 
 def parse_packet(packet: bytearray, sender: tuple):
     """Parses raw packet and runs relevant functionality.
@@ -337,10 +338,12 @@ if __name__ == "__main__":
     try:
         # Run the thing
         logging.info('waiting for packet...')
-        menu()
-    except (KeyboardInterrupt, SystemExit):
+
+        # Start listener
+        listen()
+    except Exception as e:
         # Clean shutdown
-        logging.warning('shutting down...')
+        logging.warning('shutting down (reason: {})...'.format(str(e)))
 
         # Calculate duration
         duration = round((datetime.datetime.now() - starttime).total_seconds())
